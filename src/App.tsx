@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactElement, SVGProps } from 'react';
 import {
   BadgeDollarSign,
   Beef,
+  Car,
   HeartHandshake,
   Home,
   Fuel,
-  Gauge,
   LayoutDashboard,
   LucideIcon,
   Music,
   Plane,
-  Settings2,
+  BadgePercent,
   ShoppingBag,
   ShoppingCart,
   Store,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 
 type TabId = 'dashboard' | 'setup' | 'bilt';
+type TabIcon = LucideIcon | ((props: SVGProps<SVGSVGElement> & { size?: number }) => ReactElement);
 
 type RewardsState = {
   quarterMonths: string;
@@ -28,6 +30,7 @@ type RewardsState = {
   chaseActivated: boolean;
   discoverActivated: boolean;
   confirmedQuarterKey: string;
+  reminderDismissedQuarterKey: string;
   biltSpend: number;
 };
 
@@ -49,6 +52,12 @@ type CategorySuggestion = {
   discoverSourceUrl: string;
 };
 
+type AlwaysOnReward = {
+  label: string;
+  rate: string;
+  icon: LucideIcon;
+};
+
 const STORAGE_KEY = 'credit-card-rewards-tracker:v1';
 const RENT_AMOUNT = 1600;
 const PERSONAL_TARGET = 800;
@@ -60,14 +69,40 @@ const DEFAULT_STATE: RewardsState = {
   chaseActivated: false,
   discoverActivated: false,
   confirmedQuarterKey: '',
+  reminderDismissedQuarterKey: '',
   biltSpend: 0,
 };
 
-const tabs: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }> = [
+const tabs: Array<{ id: TabId; label: string; icon: TabIcon }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'setup', label: 'Quarterly', icon: Settings2 },
-  { id: 'bilt', label: 'Bilt', icon: Gauge },
+  { id: 'bilt', label: 'Bilt', icon: BiltLogoIcon },
+  { id: 'setup', label: 'Quarterly', icon: BadgePercent },
 ];
+
+function BiltLogoIcon({
+  size = 20,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }): ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M4 5h16v14H4V5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M4 9.2h16M4 13.4h16" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9.1 5v4.2M14.6 9.2v4.2M10.8 13.4V19" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
 
 const housingTiers: HousingTier[] = [
   { spendNeeded: 400, label: '25%', multiplier: 0.5, points: 800 },
@@ -90,6 +125,33 @@ const categorySuggestions: Record<string, CategorySuggestion> = {
   },
 };
 
+const alwaysOnRewards: Array<{
+  cardName: string;
+  sourceName: string;
+  sourceUrl: string;
+  rewards: AlwaysOnReward[];
+}> = [
+  {
+    cardName: 'Chase Freedom Flex',
+    sourceName: 'Chase',
+    sourceUrl: 'https://creditcards.chase.com/cash-back-credit-cards/freedom/flex',
+    rewards: [
+      { label: 'Chase Travel', rate: '5%', icon: Plane },
+      { label: 'Dining', rate: '3%', icon: Utensils },
+      { label: 'Drugstores', rate: '3%', icon: Store },
+      { label: 'Lyft', rate: '2%', icon: Car },
+      { label: 'Everything else', rate: '1%', icon: Tag },
+    ],
+  },
+  {
+    cardName: 'Discover',
+    sourceName: 'Discover',
+    sourceUrl: 'https://www.discover.com/credit-cards/cash-back/cashback-bonus.html',
+    rewards: [{ label: 'All purchases', rate: '1%', icon: BadgeDollarSign }],
+  },
+];
+
+
 function loadState(): RewardsState {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -106,6 +168,7 @@ function loadState(): RewardsState {
       chaseActivated: Boolean(parsed.chaseActivated),
       discoverActivated: Boolean(parsed.discoverActivated),
       confirmedQuarterKey: parsed.confirmedQuarterKey ?? '',
+      reminderDismissedQuarterKey: parsed.reminderDismissedQuarterKey ?? '',
     };
   } catch {
     return DEFAULT_STATE;
@@ -155,6 +218,15 @@ function splitCategories(value: string): string[] {
     .filter(Boolean);
 }
 
+function toTitleCase(value: string): string {
+  return value.replace(/\S+/g, (word) => {
+    if (/^[A-Z]{2,}$/.test(word)) {
+      return word;
+    }
+    return `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`;
+  });
+}
+
 function getHousingProgress(spend: number) {
   const unlockedTier = [...housingTiers].reverse().find((tier) => spend >= tier.spendNeeded);
   const nextTier = housingTiers.find((tier) => spend < tier.spendNeeded);
@@ -177,6 +249,9 @@ export default function App() {
   const currentQuarterKey = useMemo(() => getCurrentQuarterKey(), []);
   const currentQuarterSuggestion = categorySuggestions[currentQuarterKey] ?? null;
   const housingProgress = useMemo(() => getHousingProgress(state.biltSpend), [state.biltSpend]);
+  const shouldShowQuarterReminder =
+    state.confirmedQuarterKey !== currentQuarterKey &&
+    state.reminderDismissedQuarterKey !== currentQuarterKey;
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -195,6 +270,10 @@ export default function App() {
       chaseActivated: false,
       discoverActivated: false,
       confirmedQuarterKey: '',
+      reminderDismissedQuarterKey:
+        current.reminderDismissedQuarterKey === currentQuarterSuggestion.key
+          ? ''
+          : current.reminderDismissedQuarterKey,
     }));
   }, [currentQuarterSuggestion, state.confirmedQuarterKey]);
 
@@ -204,6 +283,17 @@ export default function App() {
 
   return (
     <main className="app-shell">
+      {shouldShowQuarterReminder && (
+        <QuarterReminderModal
+          quarterMonths={state.quarterMonths}
+          onReview={() => {
+            updateState('reminderDismissedQuarterKey', currentQuarterKey);
+            setActiveTab('setup');
+          }}
+          onDismiss={() => updateState('reminderDismissedQuarterKey', currentQuarterKey)}
+        />
+      )}
+
       {activeTab === 'dashboard' && (
         <header className="app-header app-header--dashboard">
           <h1>{monthName}</h1>
@@ -250,6 +340,42 @@ export default function App() {
         })}
       </nav>
     </main>
+  );
+}
+
+function QuarterReminderModal({
+  quarterMonths,
+  onReview,
+  onDismiss,
+}: {
+  quarterMonths: string;
+  onReview: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="quarter-reminder-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quarter-reminder-title"
+      >
+        <p className="eyebrow">New quarter</p>
+        <h2 id="quarter-reminder-title">Activate 5% categories</h2>
+        <p>
+          Review the {quarterMonths} rotating categories, edit anything that looks off, then confirm
+          after activating Chase and Discover.
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onDismiss}>
+            Later
+          </button>
+          <button type="button" className="primary-button" onClick={onReview}>
+            Review now
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -354,7 +480,7 @@ function CategoryTile({ category, activated }: { category: string; activated: bo
       <span>
         <Icon size={19} aria-hidden="true" />
       </span>
-      <strong>{category}</strong>
+      <strong>{toTitleCase(category)}</strong>
     </div>
   );
 }
@@ -471,28 +597,29 @@ function QuarterlySetup({
 
     updateState('chaseActivated', true);
     updateState('discoverActivated', true);
+    updateState('reminderDismissedQuarterKey', getCurrentQuarterKey());
   };
 
   const editAgain = () => {
     updateState('chaseActivated', false);
     updateState('discoverActivated', false);
     updateState('confirmedQuarterKey', '');
+    updateState('reminderDismissedQuarterKey', getCurrentQuarterKey());
   };
 
   return (
     <div className="view-stack page-pad">
-      <section className="field-card quarter-auto-card">
-        <span>Quarter</span>
-        <strong>{state.quarterMonths}</strong>
-      </section>
+      <header className="page-title page-title--quarterly">
+        <h1>{state.quarterMonths}</h1>
+      </header>
 
       <section className="field-card suggestion-card">
         <div className="suggestion-heading">
           <div>
-            <span>{isConfirmed ? 'Confirmed categories' : 'Review categories'}</span>
+            <span>{isConfirmed ? 'Quarterly Rotating Categories' : 'Review categories'}</span>
             <p>
               {isConfirmed
-                ? 'These categories are locked for the quarter.'
+                ? 'These 5% categories are locked for the quarter.'
                 : 'Edit if needed, then confirm after activating both cards.'}
             </p>
           </div>
@@ -534,6 +661,8 @@ function QuarterlySetup({
         )}
       </section>
 
+      {isConfirmed && <AlwaysOnRewardsSection />}
+
       {!isConfirmed && (
         <>
           <label className="field-card">
@@ -561,6 +690,42 @@ function QuarterlySetup({
   );
 }
 
+function AlwaysOnRewardsSection() {
+  return (
+    <section className="field-card always-on-card">
+      <div className="always-on-heading">
+        <span>Always-On Rewards</span>
+        <p>Earn these outside the quarterly rotating categories.</p>
+      </div>
+
+      <div className="always-on-list">
+        {alwaysOnRewards.map((card) => (
+          <article className="always-on-bank" key={card.cardName}>
+            <div className="always-on-bank__header">
+              <strong>{card.cardName}</strong>
+            </div>
+            <div className="always-on-grid">
+              {card.rewards.map((reward) => {
+                const Icon = reward.icon;
+
+                return (
+                  <div className="always-on-reward" key={`${card.cardName}-${reward.label}`}>
+                    <span>
+                      <Icon size={16} aria-hidden="true" />
+                    </span>
+                    <strong>{reward.rate}</strong>
+                    <p>{toTitleCase(reward.label)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SuggestionRow({
   label,
   categories,
@@ -580,7 +745,7 @@ function SuggestionRow({
           {source}
         </a>
       </div>
-      <p>{categories.join(', ')}</p>
+      <p>{categories.map(toTitleCase).join(', ')}</p>
     </article>
   );
 }
