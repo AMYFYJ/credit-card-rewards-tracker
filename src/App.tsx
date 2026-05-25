@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Bell,
-  Check,
-  Clipboard,
-  CreditCard,
+  BadgeDollarSign,
+  Beef,
+  HeartHandshake,
+  Home,
+  Fuel,
   Gauge,
   LayoutDashboard,
+  LucideIcon,
+  Music,
+  Plane,
   Settings2,
-  Sparkles,
+  ShoppingBag,
+  ShoppingCart,
+  Store,
+  Tag,
+  Utensils,
+  Zap,
 } from 'lucide-react';
 
-type TabId = 'dashboard' | 'setup' | 'bilt' | 'reminders';
+type TabId = 'dashboard' | 'setup' | 'bilt';
 
 type RewardsState = {
   quarterMonths: string;
@@ -18,26 +27,39 @@ type RewardsState = {
   discoverCategories: string;
   chaseActivated: boolean;
   discoverActivated: boolean;
+  confirmedQuarterKey: string;
   biltSpend: number;
 };
 
-type Reminder = {
-  id: string;
-  title: string;
-  cadence: string;
-  text: string;
+type HousingTier = {
+  spendNeeded: number;
+  label: string;
+  multiplier: number;
+  points: number;
+};
+
+type CategorySuggestion = {
+  key: string;
+  quarterMonths: string;
+  chaseCategories: string[];
+  discoverCategories: string[];
+  chaseSource: string;
+  chaseSourceUrl: string;
+  discoverSource: string;
+  discoverSourceUrl: string;
 };
 
 const STORAGE_KEY = 'credit-card-rewards-tracker:v1';
 const RENT_AMOUNT = 1600;
-const RECOMMENDED_BILT_TARGET = 800;
+const PERSONAL_TARGET = 800;
 
 const DEFAULT_STATE: RewardsState = {
-  quarterMonths: 'Jul, Aug, Sep',
+  quarterMonths: getCurrentQuarterMonths(),
   chaseCategories: 'Gas stations, EV charging, live entertainment',
   discoverCategories: 'Restaurants, wholesale clubs',
   chaseActivated: false,
   discoverActivated: false,
+  confirmedQuarterKey: '',
   biltSpend: 0,
 };
 
@@ -45,35 +67,28 @@ const tabs: Array<{ id: TabId; label: string; icon: typeof LayoutDashboard }> = 
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'setup', label: 'Quarterly', icon: Settings2 },
   { id: 'bilt', label: 'Bilt', icon: Gauge },
-  { id: 'reminders', label: 'Reminders', icon: Bell },
 ];
 
-const reminders: Reminder[] = [
-  {
-    id: 'quarter-start',
-    title: 'Activate rotating categories',
-    cadence: 'Quarterly, first day',
-    text: 'Activate Chase Freedom Flex and Discover it Cash Back 5% categories for this quarter.',
-  },
-  {
-    id: 'quarter-check',
-    title: 'Review card categories',
-    cadence: 'Quarterly, first week',
-    text: 'Update my rewards tracker with this quarter’s Chase Freedom Flex and Discover it Cash Back categories.',
-  },
-  {
-    id: 'bilt-midmonth',
-    title: 'Check Bilt progress',
-    cadence: 'Monthly, 15th',
-    text: 'Check current month Bilt non-rent spend and aim for the $800 recommended target.',
-  },
-  {
-    id: 'bilt-month-end',
-    title: 'Finish Bilt spend target',
-    cadence: 'Monthly, last week',
-    text: 'Review Bilt non-rent spend before month end and confirm rent points are on track.',
-  },
+const housingTiers: HousingTier[] = [
+  { spendNeeded: 400, label: '25%', multiplier: 0.5, points: 800 },
+  { spendNeeded: 800, label: '50%', multiplier: 0.75, points: 1200 },
+  { spendNeeded: 1200, label: '75%', multiplier: 1, points: 1600 },
+  { spendNeeded: 1600, label: '100%', multiplier: 1.25, points: 2000 },
 ];
+
+const categorySuggestions: Record<string, CategorySuggestion> = {
+  '2026-Q2': {
+    key: '2026-Q2',
+    quarterMonths: 'Apr, May, Jun',
+    chaseCategories: ['Amazon', 'Whole Foods Market', 'Chase Travel', 'Feeding America'],
+    discoverCategories: ['Restaurants', 'Home improvement stores'],
+    chaseSource: 'Chase',
+    chaseSourceUrl: 'https://www.chase.com/personal/credit-cards/freedom/flex',
+    discoverSource: 'Doctor of Credit',
+    discoverSourceUrl:
+      'https://www.doctorofcredit.com/discover-q2-2026-5-categories-restaurants-home-improvement-stores/',
+  },
+};
 
 function loadState(): RewardsState {
   try {
@@ -86,9 +101,11 @@ function loadState(): RewardsState {
     return {
       ...DEFAULT_STATE,
       ...parsed,
+      quarterMonths: getCurrentQuarterMonths(),
       biltSpend: sanitizeSpend(parsed.biltSpend),
       chaseActivated: Boolean(parsed.chaseActivated),
       discoverActivated: Boolean(parsed.discoverActivated),
+      confirmedQuarterKey: parsed.confirmedQuarterKey ?? '',
     };
   } catch {
     return DEFAULT_STATE;
@@ -111,6 +128,26 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function getCurrentMonthName(): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date());
+}
+
+function getCurrentQuarterKey(): string {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3) + 1;
+  return `${now.getFullYear()}-Q${quarter}`;
+}
+
+function getCurrentQuarterMonths(): string {
+  const quarterMonths = [
+    ['Jan', 'Feb', 'Mar'],
+    ['Apr', 'May', 'Jun'],
+    ['Jul', 'Aug', 'Sep'],
+    ['Oct', 'Nov', 'Dec'],
+  ];
+  return quarterMonths[Math.floor(new Date().getMonth() / 3)].join(', ');
+}
+
 function splitCategories(value: string): string[] {
   return value
     .split(',')
@@ -118,82 +155,78 @@ function splitCategories(value: string): string[] {
     .filter(Boolean);
 }
 
-function getTier(spend: number) {
-  const unlocked = [400, 800, 1200, 1600].filter((threshold) => spend >= threshold);
-  const rentPoints = unlocked.at(-1) ?? 0;
+function getHousingProgress(spend: number) {
+  const unlockedTier = [...housingTiers].reverse().find((tier) => spend >= tier.spendNeeded);
+  const nextTier = housingTiers.find((tier) => spend < tier.spendNeeded);
+  const progressPercent = Math.min((spend / RENT_AMOUNT) * 100, 100);
+  const remainingToTarget = Math.max(PERSONAL_TARGET - spend, 0);
 
-  if (spend >= 1600) {
-    return { label: '$1,600 max tier', rentPoints };
-  }
-  if (spend >= 1200) {
-    return { label: '$1,200 tier', rentPoints };
-  }
-  if (spend >= 800) {
-    return { label: '$800 target tier', rentPoints };
-  }
-  if (spend >= 400) {
-    return { label: '$400 starter tier', rentPoints };
-  }
-  return { label: 'Below first tier', rentPoints };
+  return {
+    progressPercent,
+    currentTier: unlockedTier ?? null,
+    nextTier: nextTier ?? null,
+    rentPoints: unlockedTier?.points ?? 250,
+    remainingToTarget,
+  };
 }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [state, setState] = useState<RewardsState>(() => loadState());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const monthName = useMemo(() => getCurrentMonthName(), []);
+  const currentQuarterKey = useMemo(() => getCurrentQuarterKey(), []);
+  const currentQuarterSuggestion = categorySuggestions[currentQuarterKey] ?? null;
+  const housingProgress = useMemo(() => getHousingProgress(state.biltSpend), [state.biltSpend]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  useEffect(() => {
+    if (!currentQuarterSuggestion || state.confirmedQuarterKey === currentQuarterSuggestion.key) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      quarterMonths: currentQuarterSuggestion.quarterMonths,
+      chaseCategories: currentQuarterSuggestion.chaseCategories.join(', '),
+      discoverCategories: currentQuarterSuggestion.discoverCategories.join(', '),
+      chaseActivated: false,
+      discoverActivated: false,
+      confirmedQuarterKey: '',
+    }));
+  }, [currentQuarterSuggestion, state.confirmedQuarterKey]);
+
   const updateState = <Key extends keyof RewardsState>(key: Key, value: RewardsState[Key]) => {
     setState((current) => ({ ...current, [key]: value }));
   };
 
-  const progressPercent = Math.min((state.biltSpend / RENT_AMOUNT) * 100, 100);
-  const tier = useMemo(() => getTier(state.biltSpend), [state.biltSpend]);
-
-  const copyReminder = async (reminder: Reminder) => {
-    const text = `${reminder.title}\n${reminder.text}`;
-    await copyText(text);
-    setCopiedId(reminder.id);
-    window.setTimeout(() => setCopiedId(null), 1600);
-  };
-
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Credit card rewards</p>
-          <h1>Monthly tracker</h1>
-        </div>
-        <div className="rent-pill">
-          <CreditCard size={18} aria-hidden="true" />
-          <span>$1,600 rent</span>
-        </div>
-      </header>
+      {activeTab === 'dashboard' && (
+        <header className="app-header app-header--dashboard">
+          <h1>{monthName}</h1>
+        </header>
+      )}
 
       <section className="tab-panel">
         {activeTab === 'dashboard' && (
-          <Dashboard
+          <Dashboard state={state} housingProgress={housingProgress} />
+        )}
+        {activeTab === 'setup' && (
+          <QuarterlySetup
             state={state}
-            progressPercent={progressPercent}
-            tierLabel={tier.label}
-            rentPoints={tier.rentPoints}
+            updateState={updateState}
+            suggestion={currentQuarterSuggestion}
           />
         )}
-        {activeTab === 'setup' && <QuarterlySetup state={state} updateState={updateState} />}
         {activeTab === 'bilt' && (
           <BiltTracker
             spend={state.biltSpend}
-            progressPercent={progressPercent}
-            tierLabel={tier.label}
-            rentPoints={tier.rentPoints}
+            housingProgress={housingProgress}
             onSpendChange={(value) => updateState('biltSpend', sanitizeSpend(value))}
           />
-        )}
-        {activeTab === 'reminders' && (
-          <Reminders copiedId={copiedId} onCopyReminder={copyReminder} />
         )}
       </section>
 
@@ -220,151 +253,201 @@ export default function App() {
   );
 }
 
-async function copyText(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', '');
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
-}
-
 function Dashboard({
   state,
-  progressPercent,
-  tierLabel,
-  rentPoints,
+  housingProgress,
 }: {
   state: RewardsState;
-  progressPercent: number;
-  tierLabel: string;
-  rentPoints: number;
+  housingProgress: ReturnType<typeof getHousingProgress>;
 }) {
+  const currentTierLabel = housingProgress.currentTier
+    ? `${housingProgress.currentTier.multiplier}x tier`
+    : 'base tier';
+  const nextStepLabel = housingProgress.nextTier
+    ? `${formatCurrency(housingProgress.nextTier.spendNeeded - state.biltSpend)} to ${housingProgress.nextTier.multiplier}x`
+    : 'Top tier reached';
+
   return (
     <div className="view-stack">
-      <section className="hero-card">
-        <div className="hero-topline">
-          <span>{state.quarterMonths || 'Quarter not set'}</span>
-          <Sparkles size={18} aria-hidden="true" />
+      <section className="dashboard-card bilt-overview">
+        <div className="bilt-overview__meta">
+          <p className="eyebrow">Bilt spend</p>
+          <h2>{formatCurrency(state.biltSpend)}</h2>
+          <p className="bilt-overview__subline">
+            {housingProgress.rentPoints.toLocaleString()} rent pts · {currentTierLabel} ·{' '}
+            <span className="bilt-overview__next">{nextStepLabel}</span>
+          </p>
         </div>
-        <h2>{formatCurrency(state.biltSpend)} Bilt non-rent spend</h2>
-        <p>
-          {tierLabel} · {rentPoints.toLocaleString()} rent points earned
-        </p>
-        <BiltProgress spend={state.biltSpend} progressPercent={progressPercent} />
-      </section>
-
-      <section className="card-grid">
-        <CategoryCard
-          title="Chase Freedom Flex"
-          categories={state.chaseCategories}
-          activated={state.chaseActivated}
-        />
-        <CategoryCard
-          title="Discover it Cash Back"
-          categories={state.discoverCategories}
-          activated={state.discoverActivated}
+        <BiltProgress
+          spend={state.biltSpend}
+          progressPercent={housingProgress.progressPercent}
+          compact
         />
       </section>
 
-      <section className="summary-card">
-        <p className="label">Bilt Blue Card target</p>
-        <div className="metric-row">
-          <span>Recommended monthly non-rent spend</span>
-          <strong>{formatCurrency(RECOMMENDED_BILT_TARGET)}</strong>
-        </div>
-        <div className="metric-row">
-          <span>Monthly rent</span>
-          <strong>{formatCurrency(RENT_AMOUNT)}</strong>
-        </div>
-      </section>
+      <RotatingCategoriesCard state={state} />
     </div>
   );
 }
 
-function CategoryCard({
-  title,
+function RotatingCategoriesCard({ state }: { state: RewardsState }) {
+  return (
+    <section className="dashboard-card categories-overview">
+      <div className="categories-heading">
+        <div>
+          <p className="eyebrow">Quarterly rotating</p>
+          <h2>5% cash back</h2>
+        </div>
+        <span>{state.quarterMonths || 'Not set'}</span>
+      </div>
+      <RewardCard
+        cardName="Chase Freedom Flex"
+        categories={state.chaseCategories}
+        activated={state.chaseActivated}
+      />
+      <RewardCard
+        cardName="Discover"
+        categories={state.discoverCategories}
+        activated={state.discoverActivated}
+      />
+    </section>
+  );
+}
+
+function RewardCard({
+  cardName,
   categories,
   activated,
 }: {
-  title: string;
+  cardName: string;
   categories: string;
   activated: boolean;
 }) {
   const categoryList = splitCategories(categories);
 
   return (
-    <article className="category-card">
-      <div className="card-heading">
-        <h3>{title}</h3>
-        <ActivationBadge activated={activated} />
+    <article className={activated ? 'reward-card is-active' : 'reward-card'}>
+      <div className="reward-card__header">
+        <h3>{cardName}</h3>
+        <span className={activated ? 'activation-pill is-active' : 'activation-pill'}>
+          {activated ? 'Confirmed' : 'Unconfirmed'}
+        </span>
       </div>
-      <p className="label">5% categories</p>
       {categoryList.length > 0 ? (
-        <div className="chip-list">
+        <div className="category-icon-grid">
           {categoryList.map((category) => (
-            <span className="category-chip" key={category}>
-              {category}
-            </span>
+            <CategoryTile category={category} activated={activated} key={category} />
           ))}
         </div>
       ) : (
-        <p className="empty-text">Add categories in Quarterly Setup.</p>
+        <p className="empty-text">Add in Quarterly</p>
       )}
     </article>
   );
 }
 
-function ActivationBadge({ activated }: { activated: boolean }) {
+function CategoryTile({ category, activated }: { category: string; activated: boolean }) {
+  const Icon = getCategoryIcon(category);
+
   return (
-    <span className={activated ? 'status-badge active' : 'status-badge'}>
-      {activated ? <Check size={14} aria-hidden="true" /> : <Bell size={14} aria-hidden="true" />}
-      {activated ? 'Activated' : 'Needs activation'}
-    </span>
+    <div className={activated ? 'category-tile is-active' : 'category-tile'}>
+      <span>
+        <Icon size={19} aria-hidden="true" />
+      </span>
+      <strong>{category}</strong>
+    </div>
   );
+}
+
+function getCategoryIcon(category: string): LucideIcon {
+  const normalized = category.toLowerCase();
+
+  if (normalized.includes('ev') || normalized.includes('charging')) {
+    return Zap;
+  }
+  if (normalized.includes('amazon')) {
+    return ShoppingBag;
+  }
+  if (normalized.includes('whole foods')) {
+    return Beef;
+  }
+  if (normalized.includes('feeding america') || normalized.includes('charity')) {
+    return HeartHandshake;
+  }
+  if (normalized.includes('home improvement') || normalized.includes('home')) {
+    return Home;
+  }
+  if (normalized.includes('cash') || normalized.includes('pay')) {
+    return BadgeDollarSign;
+  }
+  if (normalized.includes('gas') || normalized.includes('fuel')) {
+    return Fuel;
+  }
+  if (normalized.includes('restaurant') || normalized.includes('dining')) {
+    return Utensils;
+  }
+  if (normalized.includes('entertainment') || normalized.includes('music') || normalized.includes('live')) {
+    return Music;
+  }
+  if (normalized.includes('grocery')) {
+    return ShoppingCart;
+  }
+  if (normalized.includes('wholesale') || normalized.includes('club')) {
+    return Store;
+  }
+  if (normalized.includes('travel') || normalized.includes('flight')) {
+    return Plane;
+  }
+  if (normalized.includes('shop')) {
+    return ShoppingBag;
+  }
+  return Tag;
 }
 
 function BiltProgress({
   spend,
   progressPercent,
+  compact = false,
 }: {
   spend: number;
   progressPercent: number;
+  compact?: boolean;
 }) {
   return (
-    <div className="progress-wrap" aria-label="Bilt non-rent spend progress">
+    <div className="progress-wrap" aria-label="Bilt housing-only spend progress">
       <div className="progress-track">
         <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
-        {[400, 800, 1200, 1600].map((marker) => (
+        {housingTiers.map((tier) => (
           <span
-            className={marker === RECOMMENDED_BILT_TARGET ? 'tier-marker recommended' : 'tier-marker'}
-            style={{ left: `${(marker / RENT_AMOUNT) * 100}%` }}
-            key={marker}
+            className={tier.spendNeeded === PERSONAL_TARGET ? 'tier-marker recommended' : 'tier-marker'}
+            style={{ left: `${(tier.spendNeeded / RENT_AMOUNT) * 100}%` }}
+            key={tier.spendNeeded}
           />
         ))}
       </div>
       <div className="marker-labels">
-        {[400, 800, 1200, 1600].map((marker) => (
+        {housingTiers.map((tier) => (
           <span
-            className={marker === RECOMMENDED_BILT_TARGET ? 'marker-label recommended' : 'marker-label'}
-            key={marker}
+            className={[
+              'marker-label',
+              tier.spendNeeded === PERSONAL_TARGET ? 'recommended' : '',
+              tier.spendNeeded === RENT_AMOUNT ? 'is-edge-end' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            style={{ left: `${(tier.spendNeeded / RENT_AMOUNT) * 100}%` }}
+            key={tier.spendNeeded}
           >
-            {formatCurrency(marker)}
+            {formatCurrency(tier.spendNeeded)}
           </span>
         ))}
       </div>
-      <div className="progress-caption">
-        <span>{formatCurrency(spend)} entered</span>
-        <span>Visual cap: {formatCurrency(RENT_AMOUNT)}</span>
-      </div>
+      {!compact && (
+        <div className="progress-caption">
+          <span>{formatCurrency(spend)} non-housing spend</span>
+          <span>{formatCurrency(PERSONAL_TARGET)} target</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -372,186 +455,222 @@ function BiltProgress({
 function QuarterlySetup({
   state,
   updateState,
+  suggestion,
 }: {
   state: RewardsState;
   updateState: <Key extends keyof RewardsState>(key: Key, value: RewardsState[Key]) => void;
+  suggestion: CategorySuggestion | null;
 }) {
+  const isConfirmed = state.chaseActivated && state.discoverActivated;
+  const confirmCategories = () => {
+    if (!suggestion) {
+      updateState('confirmedQuarterKey', getCurrentQuarterKey());
+    } else {
+      updateState('confirmedQuarterKey', suggestion.key);
+    }
+
+    updateState('chaseActivated', true);
+    updateState('discoverActivated', true);
+  };
+
+  const editAgain = () => {
+    updateState('chaseActivated', false);
+    updateState('discoverActivated', false);
+    updateState('confirmedQuarterKey', '');
+  };
+
   return (
-    <div className="view-stack">
-      <section className="section-heading">
-        <p className="eyebrow">Quarterly setup</p>
-        <h2>Rotating category details</h2>
+    <div className="view-stack page-pad">
+      <section className="field-card quarter-auto-card">
+        <span>Quarter</span>
+        <strong>{state.quarterMonths}</strong>
       </section>
 
-      <label className="field-card">
-        <span>Quarter duration</span>
-        <input
-          value={state.quarterMonths}
-          onChange={(event) => updateState('quarterMonths', event.target.value)}
-          placeholder="Jul, Aug, Sep"
-        />
-      </label>
-
-      <label className="field-card">
-        <span>Chase Freedom Flex 5% categories</span>
-        <textarea
-          value={state.chaseCategories}
-          onChange={(event) => updateState('chaseCategories', event.target.value)}
-          placeholder="Gas stations, EV charging"
-          rows={3}
-        />
-      </label>
-
-      <label className="field-card">
-        <span>Discover it Cash Back 5% categories</span>
-        <textarea
-          value={state.discoverCategories}
-          onChange={(event) => updateState('discoverCategories', event.target.value)}
-          placeholder="Restaurants, grocery stores"
-          rows={3}
-        />
-      </label>
-
-      <div className="toggle-card">
-        <div>
-          <strong>Chase activated</strong>
-          <p>Mark after enrolling this quarter.</p>
+      <section className="field-card suggestion-card">
+        <div className="suggestion-heading">
+          <div>
+            <span>{isConfirmed ? 'Confirmed categories' : 'Review categories'}</span>
+            <p>
+              {isConfirmed
+                ? 'These categories are locked for the quarter.'
+                : 'Edit if needed, then confirm after activating both cards.'}
+            </p>
+          </div>
+          <button type="button" onClick={isConfirmed ? editAgain : confirmCategories}>
+            {isConfirmed ? 'Edit' : 'Activated and Apply'}
+          </button>
         </div>
-        <Switch
-          checked={state.chaseActivated}
-          onChange={(checked) => updateState('chaseActivated', checked)}
-          label="Toggle Chase activation"
-        />
-      </div>
 
-      <div className="toggle-card">
-        <div>
-          <strong>Discover activated</strong>
-          <p>Mark after enrolling this quarter.</p>
-        </div>
-        <Switch
-          checked={state.discoverActivated}
-          onChange={(checked) => updateState('discoverActivated', checked)}
-          label="Toggle Discover activation"
-        />
-      </div>
+        {isConfirmed ? (
+          <div className="confirmed-category-preview">
+            <RewardCard
+              cardName="Chase Freedom Flex"
+              categories={state.chaseCategories}
+              activated={state.chaseActivated}
+            />
+            <RewardCard
+              cardName="Discover"
+              categories={state.discoverCategories}
+              activated={state.discoverActivated}
+            />
+          </div>
+        ) : suggestion ? (
+          <div className="suggestion-list">
+            <SuggestionRow
+              label="Chase"
+              categories={splitCategories(state.chaseCategories)}
+              source={suggestion.chaseSource}
+              sourceUrl={suggestion.chaseSourceUrl}
+            />
+            <SuggestionRow
+              label="Discover"
+              categories={splitCategories(state.discoverCategories)}
+              source={suggestion.discoverSource}
+              sourceUrl={suggestion.discoverSourceUrl}
+            />
+          </div>
+        ) : (
+          <p className="empty-text">No sourced suggestions saved for this quarter yet.</p>
+        )}
+      </section>
+
+      {!isConfirmed && (
+        <>
+          <label className="field-card">
+            <span>Chase Freedom Flex</span>
+            <textarea
+              value={state.chaseCategories}
+              onChange={(event) => updateState('chaseCategories', event.target.value)}
+              placeholder="Gas stations, EV charging"
+              rows={3}
+            />
+          </label>
+
+          <label className="field-card">
+            <span>Discover</span>
+            <textarea
+              value={state.discoverCategories}
+              onChange={(event) => updateState('discoverCategories', event.target.value)}
+              placeholder="Restaurants, grocery stores"
+              rows={3}
+            />
+          </label>
+        </>
+      )}
     </div>
+  );
+}
+
+function SuggestionRow({
+  label,
+  categories,
+  source,
+  sourceUrl,
+}: {
+  label: string;
+  categories: string[];
+  source: string;
+  sourceUrl: string;
+}) {
+  return (
+    <article className="suggestion-row">
+      <div>
+        <strong>{label}</strong>
+        <a href={sourceUrl} target="_blank" rel="noreferrer">
+          {source}
+        </a>
+      </div>
+      <p>{categories.join(', ')}</p>
+    </article>
   );
 }
 
 function BiltTracker({
   spend,
-  progressPercent,
-  tierLabel,
-  rentPoints,
+  housingProgress,
   onSpendChange,
 }: {
   spend: number;
-  progressPercent: number;
-  tierLabel: string;
-  rentPoints: number;
+  housingProgress: ReturnType<typeof getHousingProgress>;
   onSpendChange: (value: number) => void;
 }) {
-  return (
-    <div className="view-stack">
-      <section className="section-heading">
-        <p className="eyebrow">Bilt tracker</p>
-        <h2>Current month non-rent spend</h2>
-      </section>
+  const [inputValue, setInputValue] = useState(spend === 0 ? '' : String(spend));
 
+  useEffect(() => {
+    setInputValue(spend === 0 ? '' : String(spend));
+  }, [spend]);
+
+  const handleInputChange = (value: string) => {
+    if (!/^\d*\.?\d*$/.test(value)) {
+      return;
+    }
+
+    setInputValue(value);
+    onSpendChange(value === '' ? 0 : Number(value));
+  };
+
+  const currentLabel = housingProgress.currentTier
+    ? `${housingProgress.currentTier.multiplier}x on rent`
+    : 'Base rent points';
+  const nextLabel = housingProgress.nextTier
+    ? `${formatCurrency(housingProgress.nextTier.spendNeeded - spend)} to ${housingProgress.nextTier.multiplier}x`
+    : 'Top tier reached';
+
+  return (
+    <div className="view-stack page-pad">
       <label className="amount-input-card">
-        <span>Amount spent</span>
+        <span>Non-housing spend</span>
         <div className="amount-input">
           <span>$</span>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0"
-            step="1"
-            value={spend}
-            onChange={(event) => onSpendChange(Number(event.target.value))}
-            onBlur={(event) => onSpendChange(Number(event.target.value))}
-            aria-label="Current month Bilt non-rent spend"
+            value={inputValue}
+            onChange={(event) => handleInputChange(event.target.value)}
+            onBlur={() => setInputValue(spend === 0 ? '' : String(spend))}
+            placeholder="0"
+            aria-label="Current month Bilt non-housing spend"
           />
         </div>
       </label>
 
-      <section className="summary-card">
+      <section className="summary-card bilt-rule-card">
         <div className="metric-row">
-          <span>Current tier</span>
-          <strong>{tierLabel}</strong>
+          <span>Estimated rent points</span>
+          <strong>{housingProgress.rentPoints.toLocaleString()}</strong>
         </div>
         <div className="metric-row">
-          <span>Rent points earned</span>
-          <strong>{rentPoints.toLocaleString()}</strong>
+          <span>Current result</span>
+          <strong>{currentLabel}</strong>
+        </div>
+        <div className="metric-row">
+          <span>Next step</span>
+          <strong>{nextLabel}</strong>
         </div>
       </section>
 
       <section className="hero-card compact">
-        <BiltProgress spend={spend} progressPercent={progressPercent} />
-      </section>
-    </div>
-  );
-}
-
-function Reminders({
-  copiedId,
-  onCopyReminder,
-}: {
-  copiedId: string | null;
-  onCopyReminder: (reminder: Reminder) => void;
-}) {
-  return (
-    <div className="view-stack">
-      <section className="section-heading">
-        <p className="eyebrow">Reminder schedule</p>
-        <h2>Apple Reminders copy text</h2>
+        <BiltProgress spend={spend} progressPercent={housingProgress.progressPercent} />
       </section>
 
-      {reminders.map((reminder) => (
-        <article className="reminder-card" key={reminder.id}>
-          <div className="check-dot" aria-hidden="true">
-            <Check size={16} />
-          </div>
-          <div>
-            <h3>{reminder.title}</h3>
-            <p className="cadence">{reminder.cadence}</p>
-            <p>{reminder.text}</p>
-          </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => onCopyReminder(reminder)}
-            aria-label={`Copy ${reminder.title} reminder text`}
-            title="Copy reminder text"
+      <section className="tier-list" aria-label="Housing-only tiers">
+        {housingTiers.map((tier) => (
+          <div
+            className={spend >= tier.spendNeeded ? 'tier-row reached' : 'tier-row'}
+            key={tier.spendNeeded}
           >
-            {copiedId === reminder.id ? <Check size={19} /> : <Clipboard size={19} />}
-          </button>
-        </article>
-      ))}
-    </div>
-  );
-}
+            <span>{tier.label} spend</span>
+            <strong>
+              {formatCurrency(tier.spendNeeded)} → {tier.multiplier}x
+            </strong>
+          </div>
+        ))}
+      </section>
 
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={checked ? 'switch is-on' : 'switch'}
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-    >
-      <span />
-    </button>
+      <p className="fine-print">
+        Housing-only uses non-housing spend as a share of monthly housing payment. With{' '}
+        {formatCurrency(RENT_AMOUNT)} rent, {formatCurrency(PERSONAL_TARGET)} is the 50% tier.
+      </p>
+    </div>
   );
 }
