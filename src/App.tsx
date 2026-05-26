@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 type TabId = 'dashboard' | 'setup' | 'bilt';
+type BiltMode = 'housing' | 'cash';
 type TabIcon = LucideIcon | ((props: SVGProps<SVGSVGElement> & { size?: number }) => ReactElement);
 
 type RewardsState = {
@@ -32,13 +33,14 @@ type RewardsState = {
   confirmedQuarterKey: string;
   reminderDismissedQuarterKey: string;
   biltSpend: number;
+  biltRent: number;
+  biltMode: BiltMode;
 };
 
 type HousingTier = {
-  spendNeeded: number;
   label: string;
+  ratio: number;
   multiplier: number;
-  points: number;
 };
 
 type CategorySuggestion = {
@@ -59,8 +61,9 @@ type AlwaysOnReward = {
 };
 
 const STORAGE_KEY = 'credit-card-rewards-tracker:v1';
-const RENT_AMOUNT = 1600;
-const PERSONAL_TARGET = 800;
+const DEFAULT_RENT_AMOUNT = 1600;
+const BILT_CASH_RATE = 0.04;
+const BILT_CASH_PER_POINT = 0.03;
 
 const DEFAULT_STATE: RewardsState = {
   quarterMonths: getCurrentQuarterMonths(),
@@ -71,6 +74,8 @@ const DEFAULT_STATE: RewardsState = {
   confirmedQuarterKey: '',
   reminderDismissedQuarterKey: '',
   biltSpend: 0,
+  biltRent: DEFAULT_RENT_AMOUNT,
+  biltMode: 'housing',
 };
 
 const tabs: Array<{ id: TabId; label: string; icon: TabIcon }> = [
@@ -105,10 +110,10 @@ function BiltLogoIcon({
 }
 
 const housingTiers: HousingTier[] = [
-  { spendNeeded: 400, label: '25%', multiplier: 0.5, points: 800 },
-  { spendNeeded: 800, label: '50%', multiplier: 0.75, points: 1200 },
-  { spendNeeded: 1200, label: '75%', multiplier: 1, points: 1600 },
-  { spendNeeded: 1600, label: '100%', multiplier: 1.25, points: 2000 },
+  { label: '25%', ratio: 0.25, multiplier: 0.5 },
+  { label: '50%', ratio: 0.5, multiplier: 0.75 },
+  { label: '75%', ratio: 0.75, multiplier: 1 },
+  { label: '100%', ratio: 1, multiplier: 1.25 },
 ];
 
 const categorySuggestions: Record<string, CategorySuggestion> = {
@@ -165,6 +170,8 @@ function loadState(): RewardsState {
       ...parsed,
       quarterMonths: getCurrentQuarterMonths(),
       biltSpend: sanitizeSpend(parsed.biltSpend),
+      biltRent: sanitizeRent(parsed.biltRent),
+      biltMode: parsed.biltMode === 'cash' ? 'cash' : 'housing',
       chaseActivated: Boolean(parsed.chaseActivated),
       discoverActivated: Boolean(parsed.discoverActivated),
       confirmedQuarterKey: parsed.confirmedQuarterKey ?? '',
@@ -181,6 +188,11 @@ function sanitizeSpend(value: unknown): number {
     return 0;
   }
   return Math.max(0, numeric);
+}
+
+function sanitizeRent(value: unknown): number {
+  const numeric = sanitizeSpend(value);
+  return numeric > 0 ? numeric : DEFAULT_RENT_AMOUNT;
 }
 
 function formatCurrency(value: number): string {
@@ -227,18 +239,49 @@ function toTitleCase(value: string): string {
   });
 }
 
-function getHousingProgress(spend: number) {
-  const unlockedTier = [...housingTiers].reverse().find((tier) => spend >= tier.spendNeeded);
-  const nextTier = housingTiers.find((tier) => spend < tier.spendNeeded);
-  const progressPercent = Math.min((spend / RENT_AMOUNT) * 100, 100);
-  const remainingToTarget = Math.max(PERSONAL_TARGET - spend, 0);
+function getSpendNeeded(rent: number, ratio: number) {
+  return rent * ratio;
+}
+
+function getTierPoints(rent: number, multiplier: number) {
+  return Math.round(rent * multiplier);
+}
+
+function getHousingProgress(spend: number, rent: number) {
+  const unlockedTier = [...housingTiers]
+    .reverse()
+    .find((tier) => spend >= getSpendNeeded(rent, tier.ratio));
+  const nextTier = housingTiers.find((tier) => spend < getSpendNeeded(rent, tier.ratio));
+  const progressPercent = rent > 0 ? Math.min((spend / rent) * 100, 100) : 0;
 
   return {
     progressPercent,
     currentTier: unlockedTier ?? null,
     nextTier: nextTier ?? null,
-    rentPoints: unlockedTier?.points ?? 250,
-    remainingToTarget,
+    rentPoints: unlockedTier ? getTierPoints(rent, unlockedTier.multiplier) : 250,
+  };
+}
+
+function getBiltCashProgress(spend: number, rent: number) {
+  const biltCashEarned = spend * BILT_CASH_RATE;
+  const fullUnlockCashNeeded = rent * BILT_CASH_PER_POINT;
+  const spendNeededForFullUnlock = fullUnlockCashNeeded / BILT_CASH_RATE;
+  const remainingSpendNeeded = Math.max(spendNeededForFullUnlock - spend, 0);
+  const rentPoints = Math.min(rent, Math.floor(biltCashEarned / BILT_CASH_PER_POINT));
+  const biltCashUsed = Math.min(biltCashEarned, fullUnlockCashNeeded);
+  const remainingCashNeeded = Math.max(fullUnlockCashNeeded - biltCashEarned, 0);
+  const leftoverBiltCash = Math.max(biltCashEarned - fullUnlockCashNeeded, 0);
+
+  return {
+    biltCashEarned,
+    biltCashUsed,
+    fullUnlockCashNeeded,
+    leftoverBiltCash,
+    remainingCashNeeded,
+    remainingSpendNeeded,
+    spendNeededForFullUnlock,
+    progressPercent: fullUnlockCashNeeded > 0 ? Math.min((biltCashEarned / fullUnlockCashNeeded) * 100, 100) : 0,
+    rentPoints,
   };
 }
 
@@ -248,7 +291,11 @@ export default function App() {
   const monthName = useMemo(() => getCurrentMonthName(), []);
   const currentQuarterKey = useMemo(() => getCurrentQuarterKey(), []);
   const currentQuarterSuggestion = categorySuggestions[currentQuarterKey] ?? null;
-  const housingProgress = useMemo(() => getHousingProgress(state.biltSpend), [state.biltSpend]);
+  const effectiveBiltRent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
+  const housingProgress = useMemo(
+    () => getHousingProgress(state.biltSpend, effectiveBiltRent),
+    [effectiveBiltRent, state.biltSpend],
+  );
   const shouldShowQuarterReminder =
     state.confirmedQuarterKey !== currentQuarterKey &&
     state.reminderDismissedQuarterKey !== currentQuarterKey;
@@ -314,8 +361,12 @@ export default function App() {
         {activeTab === 'bilt' && (
           <BiltTracker
             spend={state.biltSpend}
+            rent={state.biltRent}
+            mode={state.biltMode}
             housingProgress={housingProgress}
             onSpendChange={(value) => updateState('biltSpend', sanitizeSpend(value))}
+            onRentChange={(value) => updateState('biltRent', sanitizeSpend(value))}
+            onModeChange={(value) => updateState('biltMode', value)}
           />
         )}
       </section>
@@ -386,11 +437,12 @@ function Dashboard({
   state: RewardsState;
   housingProgress: ReturnType<typeof getHousingProgress>;
 }) {
+  const rent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
   const currentTierLabel = housingProgress.currentTier
     ? `${housingProgress.currentTier.multiplier}x tier`
     : 'base tier';
   const nextStepLabel = housingProgress.nextTier
-    ? `${formatCurrency(housingProgress.nextTier.spendNeeded - state.biltSpend)} to ${housingProgress.nextTier.multiplier}x`
+    ? `${formatCurrency(getSpendNeeded(rent, housingProgress.nextTier.ratio) - state.biltSpend)} to ${housingProgress.nextTier.multiplier}x`
     : 'Top tier reached';
 
   return (
@@ -406,6 +458,7 @@ function Dashboard({
         </div>
         <BiltProgress
           spend={state.biltSpend}
+          rent={rent}
           progressPercent={housingProgress.progressPercent}
           compact
         />
@@ -532,10 +585,12 @@ function getCategoryIcon(category: string): LucideIcon {
 
 function BiltProgress({
   spend,
+  rent,
   progressPercent,
   compact = false,
 }: {
   spend: number;
+  rent: number;
   progressPercent: number;
   compact?: boolean;
 }) {
@@ -545,9 +600,9 @@ function BiltProgress({
         <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
         {housingTiers.map((tier) => (
           <span
-            className={tier.spendNeeded === PERSONAL_TARGET ? 'tier-marker recommended' : 'tier-marker'}
-            style={{ left: `${(tier.spendNeeded / RENT_AMOUNT) * 100}%` }}
-            key={tier.spendNeeded}
+            className={tier.ratio === 0.5 ? 'tier-marker recommended' : 'tier-marker'}
+            style={{ left: `${tier.ratio * 100}%` }}
+            key={tier.ratio}
           />
         ))}
       </div>
@@ -556,22 +611,22 @@ function BiltProgress({
           <span
             className={[
               'marker-label',
-              tier.spendNeeded === PERSONAL_TARGET ? 'recommended' : '',
-              tier.spendNeeded === RENT_AMOUNT ? 'is-edge-end' : '',
+              tier.ratio === 0.5 ? 'recommended' : '',
+              tier.ratio === 1 ? 'is-edge-end' : '',
             ]
               .filter(Boolean)
               .join(' ')}
-            style={{ left: `${(tier.spendNeeded / RENT_AMOUNT) * 100}%` }}
-            key={tier.spendNeeded}
+            style={{ left: `${tier.ratio * 100}%` }}
+            key={tier.ratio}
           >
-            {formatCurrency(tier.spendNeeded)}
+            {formatCurrency(getSpendNeeded(rent, tier.ratio))}
           </span>
         ))}
       </div>
       {!compact && (
         <div className="progress-caption">
           <span>{formatCurrency(spend)} non-housing spend</span>
-          <span>{formatCurrency(PERSONAL_TARGET)} target</span>
+          <span>{formatCurrency(getSpendNeeded(rent, 0.5))} 50% tier</span>
         </div>
       )}
     </div>
@@ -752,90 +807,264 @@ function SuggestionRow({
 
 function BiltTracker({
   spend,
+  rent,
+  mode,
   housingProgress,
   onSpendChange,
+  onRentChange,
+  onModeChange,
 }: {
   spend: number;
+  rent: number;
+  mode: BiltMode;
   housingProgress: ReturnType<typeof getHousingProgress>;
   onSpendChange: (value: number) => void;
+  onRentChange: (value: number) => void;
+  onModeChange: (value: BiltMode) => void;
 }) {
-  const [inputValue, setInputValue] = useState(spend === 0 ? '' : String(spend));
-
-  useEffect(() => {
-    setInputValue(spend === 0 ? '' : String(spend));
-  }, [spend]);
-
-  const handleInputChange = (value: string) => {
-    if (!/^\d*\.?\d*$/.test(value)) {
-      return;
-    }
-
-    setInputValue(value);
-    onSpendChange(value === '' ? 0 : Number(value));
-  };
-
+  const effectiveRent = rent > 0 ? rent : DEFAULT_RENT_AMOUNT;
+  const biltCashProgress = useMemo(
+    () => getBiltCashProgress(spend, effectiveRent),
+    [effectiveRent, spend],
+  );
+  const housingPoints = housingProgress.rentPoints;
+  const biltCashPoints = biltCashProgress.rentPoints;
   const currentLabel = housingProgress.currentTier
     ? `${housingProgress.currentTier.multiplier}x on rent`
     : 'Base rent points';
   const nextLabel = housingProgress.nextTier
-    ? `${formatCurrency(housingProgress.nextTier.spendNeeded - spend)} to ${housingProgress.nextTier.multiplier}x`
+    ? `${formatCurrency(getSpendNeeded(effectiveRent, housingProgress.nextTier.ratio) - spend)} to ${housingProgress.nextTier.multiplier}x`
     : 'Top tier reached';
+  const biltCashFullUnlockLabel =
+    biltCashProgress.remainingCashNeeded > 0
+      ? formatCurrency(biltCashProgress.remainingCashNeeded)
+      : `${formatCurrency(biltCashProgress.leftoverBiltCash)} Bilt Cash left`;
+  const biltCashSpendGapLabel =
+    biltCashProgress.remainingSpendNeeded > 0
+      ? formatCurrency(biltCashProgress.remainingSpendNeeded)
+      : 'Full unlock reached';
 
   return (
     <div className="view-stack page-pad">
-      <label className="amount-input-card">
-        <span>Non-housing spend</span>
-        <div className="amount-input">
-          <span>$</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={inputValue}
-            onChange={(event) => handleInputChange(event.target.value)}
-            onBlur={() => setInputValue(spend === 0 ? '' : String(spend))}
-            placeholder="0"
-            aria-label="Current month Bilt non-housing spend"
-          />
-        </div>
-      </label>
+      <BiltAmountForm
+        spend={spend}
+        rent={rent}
+        onSpendChange={onSpendChange}
+        onRentChange={onRentChange}
+      />
 
-      <section className="summary-card bilt-rule-card">
-        <div className="metric-row">
-          <span>Estimated rent points</span>
-          <strong>{housingProgress.rentPoints.toLocaleString()}</strong>
-        </div>
-        <div className="metric-row">
-          <span>Current result</span>
-          <strong>{currentLabel}</strong>
-        </div>
-        <div className="metric-row">
-          <span>Next step</span>
-          <strong>{nextLabel}</strong>
-        </div>
+      <section
+        className={`bilt-mode-switcher is-${mode}`}
+        aria-label="Bilt earning mode"
+      >
+        <button
+          type="button"
+          className={mode === 'housing' ? 'is-active' : ''}
+          onClick={() => onModeChange('housing')}
+          aria-pressed={mode === 'housing'}
+        >
+          Housing-only
+        </button>
+        <button
+          type="button"
+          className={mode === 'cash' ? 'is-active' : ''}
+          onClick={() => onModeChange('cash')}
+          aria-pressed={mode === 'cash'}
+        >
+          Bilt Cash
+        </button>
       </section>
 
-      <section className="hero-card compact">
-        <BiltProgress spend={spend} progressPercent={housingProgress.progressPercent} />
-      </section>
+      {mode === 'housing' ? (
+        <>
+          <section className="bilt-mode-card">
+            <div className="bilt-mode-card__heading">
+              <div>
+                <p className="eyebrow">Housing-only</p>
+                <h2>{housingPoints.toLocaleString()} rent points unlocked</h2>
+              </div>
+              <span>{currentLabel}</span>
+            </div>
+            <BiltProgress
+              spend={spend}
+              rent={effectiveRent}
+              progressPercent={housingProgress.progressPercent}
+            />
+            <div className="mode-metrics">
+              <div>
+                <span>Next step</span>
+                <strong>{nextLabel}</strong>
+              </div>
+              <div>
+                <span>50% tier</span>
+                <strong>{formatCurrency(getSpendNeeded(effectiveRent, 0.5))}</strong>
+              </div>
+            </div>
+          </section>
 
-      <section className="tier-list" aria-label="Housing-only tiers">
-        {housingTiers.map((tier) => (
-          <div
-            className={spend >= tier.spendNeeded ? 'tier-row reached' : 'tier-row'}
-            key={tier.spendNeeded}
-          >
-            <span>{tier.label} spend</span>
-            <strong>
-              {formatCurrency(tier.spendNeeded)} → {tier.multiplier}x
-            </strong>
-          </div>
-        ))}
-      </section>
+          <section className="tier-list" aria-label="Housing-only tiers">
+            {housingTiers.map((tier) => (
+              <div
+                className={
+                  spend >= getSpendNeeded(effectiveRent, tier.ratio)
+                    ? 'tier-row reached'
+                    : 'tier-row'
+                }
+                key={tier.ratio}
+              >
+                <span>{tier.label} spend</span>
+                <strong>
+                  {formatCurrency(getSpendNeeded(effectiveRent, tier.ratio))} → {tier.multiplier}x
+                </strong>
+              </div>
+            ))}
+          </section>
 
-      <p className="fine-print">
-        Housing-only uses non-housing spend as a share of monthly housing payment. With{' '}
-        {formatCurrency(RENT_AMOUNT)} rent, {formatCurrency(PERSONAL_TARGET)} is the 50% tier.
-      </p>
+          <p className="fine-print">
+            Housing-only skips 4% Bilt Cash and applies an automatic rent multiplier after
+            statement close.
+          </p>
+        </>
+      ) : (
+        <>
+          <section className="bilt-mode-card bilt-mode-card--cash">
+            <div className="bilt-mode-card__heading">
+              <div>
+                <p className="eyebrow">Flexible Bilt Cash</p>
+                <h2>Unlock 1x rent points</h2>
+              </div>
+            </div>
+            <div className="cash-highlight-grid">
+              <div className="cash-highlight-card">
+                <span>Bilt Cash still needed</span>
+                <strong>{biltCashFullUnlockLabel}</strong>
+              </div>
+              <div className="cash-highlight-card">
+                <span>Spend still needed</span>
+                <strong>{biltCashSpendGapLabel}</strong>
+              </div>
+            </div>
+            <div className="cash-progress" aria-label="Bilt Cash progress toward 1x rent points">
+              <div className="cash-progress__track">
+                <div
+                  className="cash-progress__fill"
+                  style={{ width: `${biltCashProgress.progressPercent}%` }}
+                />
+              </div>
+              <div className="progress-caption">
+                <span>{formatCurrency(biltCashProgress.biltCashEarned)} BC earned</span>
+                <span>
+                  {formatCurrency(biltCashProgress.fullUnlockCashNeeded)} BC for 1x rent
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="summary-card bilt-rule-card bilt-cash-detail-card">
+            <div className="metric-row">
+              <span>Rent points unlocked</span>
+              <strong>{biltCashPoints.toLocaleString()} pts</strong>
+            </div>
+            <div className="metric-row">
+              <span>Maximum rent points</span>
+              <strong>{effectiveRent.toLocaleString()} pts</strong>
+            </div>
+            <div className="conversion-breakdown">
+              <span>Conversion</span>
+              <div>
+                <p>
+                  <span>Bilt Cash earned</span>
+                  <strong>4% of spend</strong>
+                </p>
+                <p>
+                  <span>Rent points unlocked</span>
+                  <strong>$3 Bilt Cash = 100 pts</strong>
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <p className="fine-print">
+            Bilt Cash mode earns 4% back on non-housing spend, then can use Bilt Cash to unlock up
+            to 1x points on rent.
+          </p>
+        </>
+      )}
     </div>
+  );
+}
+
+function BiltAmountForm({
+  spend,
+  rent,
+  onSpendChange,
+  onRentChange,
+}: {
+  spend: number;
+  rent: number;
+  onSpendChange: (value: number) => void;
+  onRentChange: (value: number) => void;
+}) {
+  return (
+    <section className="bilt-amount-form">
+      <AmountField
+        label="Non-housing spend"
+        value={spend}
+        onValueChange={onSpendChange}
+        ariaLabel="Current month Bilt non-housing spend"
+      />
+        <AmountField
+          label="Rent"
+          value={rent}
+          onValueChange={onRentChange}
+          ariaLabel="Current month rent amount"
+        />
+    </section>
+  );
+}
+
+function AmountField({
+  label,
+  value,
+  onValueChange,
+  ariaLabel,
+  emptyValue = 0,
+}: {
+  label: string;
+  value: number;
+  onValueChange: (value: number) => void;
+  ariaLabel: string;
+  emptyValue?: number;
+}) {
+  const [inputValue, setInputValue] = useState(value === 0 ? '' : String(value));
+
+  useEffect(() => {
+    setInputValue(value === 0 ? '' : String(value));
+  }, [value]);
+
+  const handleInputChange = (nextValue: string) => {
+    if (!/^\d*\.?\d*$/.test(nextValue)) {
+      return;
+    }
+
+    setInputValue(nextValue);
+    onValueChange(nextValue === '' ? emptyValue : Number(nextValue));
+  };
+
+  return (
+    <label className="amount-field">
+      <span>{label}</span>
+      <div className="amount-input">
+        <span>$</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={inputValue}
+          onChange={(event) => handleInputChange(event.target.value)}
+          placeholder="0"
+          aria-label={ariaLabel}
+        />
+      </div>
+    </label>
   );
 }

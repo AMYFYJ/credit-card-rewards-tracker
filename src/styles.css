@@ -855,8 +855,272 @@ textarea:focus {
   box-shadow: none;
 }
 
+.bilt-amount-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(31, 39, 55, 0.07);
+}
+
+.amount-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.amount-field > span {
+  color: #303743;
+  font-size: 0.84rem;
+  font-weight: 850;
+  line-height: 1.12;
+}
+
+.bilt-amount-form .amount-input {
+  gap: 5px;
+  padding: 2px 8px;
+}
+
+.bilt-amount-form .amount-input span,
+.bilt-amount-form .amount-input input {
+  font-size: 1.2rem;
+}
+
+.bilt-mode-switcher {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  width: fit-content;
+  max-width: 100%;
+  justify-self: center;
+  padding: 3px;
+  border: 1px solid #d8e2e6;
+  border-radius: 999px;
+  background: #edf3f2;
+}
+
+.bilt-mode-switcher::before {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  z-index: 0;
+  width: calc((100% - 6px) / 2);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 3px 10px rgba(31, 39, 55, 0.1);
+  content: "";
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.bilt-mode-switcher.is-cash::before {
+  transform: translateX(100%);
+}
+
+.bilt-mode-switcher button {
+  position: relative;
+  z-index: 1;
+  min-width: 116px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #68707d;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.bilt-mode-switcher button.is-active {
+  color: #173f47;
+  background: transparent;
+  box-shadow: none;
+}
+
 .bilt-rule-card strong {
-  max-width: 48%;
+  max-width: 56%;
+}
+
+.bilt-mode-card {
+  display: grid;
+  gap: 15px;
+  padding: 15px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(31, 39, 55, 0.07);
+}
+
+.bilt-mode-card--cash {
+  border-color: #cfe2dc;
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbf8 100%);
+}
+
+.bilt-mode-card__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bilt-mode-card__heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.bilt-mode-card__heading h2 {
+  margin: 0;
+  color: #1f2730;
+  font-size: 1.25rem;
+}
+
+.bilt-mode-card--cash .bilt-mode-card__heading h2 {
+  font-size: 1.16rem;
+}
+
+.bilt-mode-card__heading > span {
+  flex: 0 0 auto;
+  max-width: 38%;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: #176147;
+  background: #ddf4ec;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.mode-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bilt-mode-card--cash .mode-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mode-metrics div {
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid #e1e8ee;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.mode-metrics span {
+  color: #68707d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mode-metrics strong {
+  align-self: end;
+  color: #202832;
+  font-size: 0.86rem;
+  line-height: 1.18;
+}
+
+.cash-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.cash-highlight-card {
+  display: grid;
+  gap: 7px;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #cfe3dc;
+  border-radius: 8px;
+  background: #f1faf6;
+}
+
+.cash-highlight-card span {
+  color: #557065;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+
+.cash-highlight-card strong {
+  align-self: end;
+  color: #163b46;
+  font-size: 1.44rem;
+  line-height: 1;
+}
+
+.bilt-cash-detail-card {
+  gap: 10px;
+}
+
+.conversion-breakdown {
+  display: grid;
+  gap: 6px;
+}
+
+.conversion-breakdown > span {
+  color: #68707d;
+  font-size: 0.92rem;
+}
+
+.conversion-breakdown div {
+  display: grid;
+  gap: 5px;
+  padding-left: 10px;
+  border-left: 2px solid #dfe8e7;
+}
+
+.conversion-breakdown p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  color: #68707d;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.conversion-breakdown strong {
+  flex: 0 0 auto;
+  color: #303743;
+  font-size: 0.78rem;
+}
+
+.cash-progress {
+  display: grid;
+  gap: 10px;
+}
+
+.cash-progress__track {
+  height: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ecf1;
+}
+
+.cash-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #78dcca, #d8e46e);
+  transition: width 180ms ease;
+}
+
+.cash-progress .progress-caption {
+  color: #68707d;
+  font-size: 0.86rem;
+  line-height: 1.3;
 }
 
 .tier-list {
