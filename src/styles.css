@@ -322,7 +322,7 @@ h3 {
   align-content: start;
   gap: 5px;
   min-width: 0;
-  min-height: 72px;
+  min-height: 92px;
   padding: 8px 4px 7px;
   border: 1px solid #e4e9ee;
   border-radius: 8px;
@@ -343,10 +343,13 @@ h3 {
 }
 
 .category-tile strong {
+  max-width: 100%;
   color: inherit;
   font-size: 0.68rem;
   font-weight: 780;
   line-height: 1.08;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .category-tile.is-active {
@@ -479,6 +482,14 @@ h3 {
 .progress-wrap {
   display: grid;
   gap: 10px;
+}
+
+.progress-label {
+  color: #68707d;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .progress-track {
@@ -941,6 +952,47 @@ textarea:focus {
   box-shadow: none;
 }
 
+.bilt-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bilt-comparison div {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 11px;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(31, 39, 55, 0.05);
+}
+
+.bilt-comparison div.is-active {
+  border-color: #a8d8cc;
+  background: #effaf6;
+}
+
+.bilt-comparison span {
+  color: #68707d;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+
+.bilt-comparison strong {
+  align-self: end;
+  color: #1f2730;
+  font-size: 1.26rem;
+  line-height: 1;
+}
+
+.bilt-comparison div.is-active strong {
+  color: #176147;
+}
+
 .bilt-rule-card strong {
   max-width: 56%;
 }
@@ -978,10 +1030,6 @@ textarea:focus {
   font-size: 1.25rem;
 }
 
-.bilt-mode-card--cash .bilt-mode-card__heading h2 {
-  font-size: 1.16rem;
-}
-
 .bilt-mode-card__heading > span {
   flex: 0 0 auto;
   max-width: 38%;
@@ -999,10 +1047,6 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-}
-
-.bilt-mode-card--cash .mode-metrics {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mode-metrics div {
@@ -1027,37 +1071,6 @@ textarea:focus {
   color: #202832;
   font-size: 0.86rem;
   line-height: 1.18;
-}
-
-.cash-highlight-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-}
-
-.cash-highlight-card {
-  display: grid;
-  gap: 7px;
-  min-height: 92px;
-  padding: 12px;
-  border: 1px solid #cfe3dc;
-  border-radius: 8px;
-  background: #f1faf6;
-}
-
-.cash-highlight-card span {
-  color: #557065;
-  font-size: 0.68rem;
-  font-weight: 850;
-  line-height: 1.12;
-  text-transform: uppercase;
-}
-
-.cash-highlight-card strong {
-  align-self: end;
-  color: #163b46;
-  font-size: 1.44rem;
-  line-height: 1;
 }
 
 .bilt-cash-detail-card {

@@ -596,6 +596,7 @@ function BiltProgress({
 }) {
   return (
     <div className="progress-wrap" aria-label="Bilt housing-only spend progress">
+      <span className="progress-label">Spend progress</span>
       <div className="progress-track">
         <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
         {housingTiers.map((tier) => (
@@ -843,6 +844,8 @@ function BiltTracker({
     biltCashProgress.remainingSpendNeeded > 0
       ? formatCurrency(biltCashProgress.remainingSpendNeeded)
       : 'Full unlock reached';
+  const biltCashStatusLabel =
+    biltCashProgress.rentPoints >= effectiveRent ? '1x on rent unlocked' : 'Partial 1x unlock';
 
   return (
     <div className="view-stack page-pad">
@@ -875,6 +878,17 @@ function BiltTracker({
         </button>
       </section>
 
+      <section className="bilt-comparison" aria-label="Rent points unlocked by mode">
+        <div className={mode === 'housing' ? 'is-active' : ''}>
+          <span>Housing-only</span>
+          <strong>{housingPoints.toLocaleString()} pts</strong>
+        </div>
+        <div className={mode === 'cash' ? 'is-active' : ''}>
+          <span>Bilt Cash</span>
+          <strong>{biltCashPoints.toLocaleString()} pts</strong>
+        </div>
+      </section>
+
       {mode === 'housing' ? (
         <>
           <section className="bilt-mode-card">
@@ -896,7 +910,7 @@ function BiltTracker({
                 <strong>{nextLabel}</strong>
               </div>
               <div>
-                <span>50% tier</span>
+                <span>Best value target</span>
                 <strong>{formatCurrency(getSpendNeeded(effectiveRent, 0.5))}</strong>
               </div>
             </div>
@@ -931,15 +945,16 @@ function BiltTracker({
             <div className="bilt-mode-card__heading">
               <div>
                 <p className="eyebrow">Flexible Bilt Cash</p>
-                <h2>Unlock 1x rent points</h2>
+                <h2>To unlock 1x on rent</h2>
               </div>
+              <span>{biltCashStatusLabel}</span>
             </div>
-            <div className="cash-highlight-grid">
-              <div className="cash-highlight-card">
-                <span>Bilt Cash still needed</span>
+            <div className="mode-metrics">
+              <div>
+                <span>BC still needed</span>
                 <strong>{biltCashFullUnlockLabel}</strong>
               </div>
-              <div className="cash-highlight-card">
+              <div>
                 <span>Spend still needed</span>
                 <strong>{biltCashSpendGapLabel}</strong>
               </div>
