@@ -1,28 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ReactElement, SVGProps } from 'react';
-import {
-  BadgeDollarSign,
-  Beef,
-  Car,
-  HeartHandshake,
-  Home,
-  Fuel,
-  LayoutDashboard,
-  LucideIcon,
-  Music,
-  Plane,
-  BadgePercent,
-  ShoppingBag,
-  ShoppingCart,
-  Store,
-  Tag,
-  Utensils,
-  Zap,
-} from 'lucide-react';
 
 type TabId = 'dashboard' | 'setup' | 'bilt';
 type BiltMode = 'housing' | 'cash';
-type TabIcon = LucideIcon | ((props: SVGProps<SVGSVGElement> & { size?: number }) => ReactElement);
 
 type RewardsState = {
   quarterMonths: string;
@@ -57,7 +36,7 @@ type CategorySuggestion = {
 type AlwaysOnReward = {
   label: string;
   rate: string;
-  icon: LucideIcon;
+  icon: string;
 };
 
 const STORAGE_KEY = 'credit-card-rewards-tracker:v1';
@@ -78,34 +57,54 @@ const DEFAULT_STATE: RewardsState = {
   biltMode: 'housing',
 };
 
-const tabs: Array<{ id: TabId; label: string; icon: TabIcon }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'bilt', label: 'Bilt', icon: BiltLogoIcon },
-  { id: 'setup', label: 'Quarterly', icon: BadgePercent },
+const tabs: Array<{ id: TabId; label: string; icon: string }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'bilt', label: 'Bilt', icon: 'bilt' },
+  { id: 'setup', label: 'Quarterly', icon: 'percent' },
 ];
 
-function BiltLogoIcon({
-  size = 20,
-  ...props
-}: SVGProps<SVGSVGElement> & { size?: number }): ReactElement {
+/* ── inline icon set (ported from the Flavor A design handoff) ── */
+const ICONS: Record<string, string> = {
+  dashboard:
+    '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  bilt: '<rect x="4" y="4" width="16" height="16" rx="1.6"/><line x1="4" y1="9.3" x2="20" y2="9.3"/><line x1="4" y1="14" x2="20" y2="14"/><line x1="9.2" y1="4" x2="9.2" y2="9.3"/><line x1="14.6" y1="9.3" x2="14.6" y2="14"/><line x1="10.8" y1="14" x2="10.8" y2="20"/>',
+  percent:
+    '<line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  plane:
+    '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
+  heart:
+    '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.49 4.04 3 5.5l7 7Z"/>',
+  utensils:
+    '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  store:
+    '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>',
+  car: '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+  tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  dollar:
+    '<circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  /* extra icons for editable categories beyond the mock's fixed set */
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  fuel: '<line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>',
+  cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+};
+
+function Icon({ name }: { name: string }) {
   return (
     <svg
-      width={size}
-      height={size}
       viewBox="0 0 24 24"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <path
-        d="M4 5h16v14H4V5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M4 9.2h16M4 13.4h16" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M9.1 5v4.2M14.6 9.2v4.2M10.8 13.4V19" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: ICONS[name] || '' }}
+    />
   );
 }
 
@@ -132,30 +131,23 @@ const categorySuggestions: Record<string, CategorySuggestion> = {
 
 const alwaysOnRewards: Array<{
   cardName: string;
-  sourceName: string;
-  sourceUrl: string;
   rewards: AlwaysOnReward[];
 }> = [
   {
     cardName: 'Chase Freedom Flex',
-    sourceName: 'Chase',
-    sourceUrl: 'https://creditcards.chase.com/cash-back-credit-cards/freedom/flex',
     rewards: [
-      { label: 'Chase Travel', rate: '5%', icon: Plane },
-      { label: 'Dining', rate: '3%', icon: Utensils },
-      { label: 'Drugstores', rate: '3%', icon: Store },
-      { label: 'Lyft', rate: '2%', icon: Car },
-      { label: 'Everything else', rate: '1%', icon: Tag },
+      { label: 'Chase Travel', rate: '5%', icon: 'plane' },
+      { label: 'Dining', rate: '3%', icon: 'utensils' },
+      { label: 'Drugstores', rate: '3%', icon: 'store' },
+      { label: 'Lyft', rate: '2%', icon: 'car' },
+      { label: 'Else', rate: '1%', icon: 'tag' },
     ],
   },
   {
     cardName: 'Discover',
-    sourceName: 'Discover',
-    sourceUrl: 'https://www.discover.com/credit-cards/cash-back/cashback-bonus.html',
-    rewards: [{ label: 'All purchases', rate: '1%', icon: BadgeDollarSign }],
+    rewards: [{ label: 'All purchases', rate: '1%', icon: 'dollar' }],
   },
 ];
-
 
 function loadState(): RewardsState {
   try {
@@ -223,6 +215,20 @@ function getCurrentQuarterMonths(): string {
   return quarterMonths[Math.floor(new Date().getMonth() / 3)].join(', ');
 }
 
+function getQuarterRange(months: string): string {
+  const parts = months
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return months;
+  }
+  if (parts.length === 1) {
+    return parts[0];
+  }
+  return `${parts[0]}–${parts[parts.length - 1]}`;
+}
+
 function splitCategories(value: string): string[] {
   return value
     .split(',')
@@ -280,9 +286,15 @@ function getBiltCashProgress(spend: number, rent: number) {
     remainingCashNeeded,
     remainingSpendNeeded,
     spendNeededForFullUnlock,
-    progressPercent: fullUnlockCashNeeded > 0 ? Math.min((biltCashEarned / fullUnlockCashNeeded) * 100, 100) : 0,
+    progressPercent:
+      fullUnlockCashNeeded > 0 ? Math.min((biltCashEarned / fullUnlockCashNeeded) * 100, 100) : 0,
     rentPoints,
   };
+}
+
+/* multiplication sign helper to match the mock's "0.75×" typography */
+function mult(value: number): string {
+  return `${value}×`;
 }
 
 export default function App() {
@@ -341,15 +353,9 @@ export default function App() {
         />
       )}
 
-      {activeTab === 'dashboard' && (
-        <header className="app-header app-header--dashboard">
-          <h1>{monthName}</h1>
-        </header>
-      )}
-
-      <section className="tab-panel">
+      <div className="screen-scroll">
         {activeTab === 'dashboard' && (
-          <Dashboard state={state} housingProgress={housingProgress} />
+          <Dashboard monthName={monthName} state={state} housingProgress={housingProgress} />
         )}
         {activeTab === 'setup' && (
           <QuarterlySetup
@@ -369,22 +375,21 @@ export default function App() {
             onModeChange={(value) => updateState('biltMode', value)}
           />
         )}
-      </section>
+      </div>
 
-      <nav className="bottom-tabs" aria-label="Primary navigation">
+      <nav className="tabbar" aria-label="Primary navigation">
         {tabs.map((tab) => {
-          const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 
           return (
             <button
               type="button"
-              className={isActive ? 'tab-button is-active' : 'tab-button'}
+              className={isActive ? 'tab on' : 'tab'}
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <Icon size={20} aria-hidden="true" />
+              <Icon name={tab.icon} />
               <span>{tab.label}</span>
             </button>
           );
@@ -414,14 +419,14 @@ function QuarterReminderModal({
         <p className="eyebrow">New quarter</p>
         <h2 id="quarter-reminder-title">Activate 5% categories</h2>
         <p>
-          Review the {quarterMonths} rotating categories, edit anything that looks off, then confirm
-          after activating Chase and Discover.
+          Review the {getQuarterRange(quarterMonths)} rotating categories, edit anything that looks
+          off, then confirm after activating Chase and Discover.
         </p>
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onDismiss}>
+          <button type="button" className="btn ghost" onClick={onDismiss}>
             Later
           </button>
-          <button type="button" className="primary-button" onClick={onReview}>
+          <button type="button" className="btn" onClick={onReview}>
             Review now
           </button>
         </div>
@@ -430,208 +435,209 @@ function QuarterReminderModal({
   );
 }
 
-function Dashboard({
-  state,
-  housingProgress,
+/* progress bar with tier ticks + optional best-value marker */
+function Progress({
+  percent,
+  ticks,
+  hero,
+  recAt,
 }: {
-  state: RewardsState;
-  housingProgress: ReturnType<typeof getHousingProgress>;
+  percent: number;
+  ticks: Array<{ left: number; label: string; on: boolean }>;
+  hero?: boolean;
+  recAt?: number;
 }) {
-  const rent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
-  const currentTierLabel = housingProgress.currentTier
-    ? `${housingProgress.currentTier.multiplier}x tier`
-    : 'base tier';
-  const nextStepLabel = housingProgress.nextTier
-    ? `${formatCurrency(getSpendNeeded(rent, housingProgress.nextTier.ratio) - state.biltSpend)} to ${housingProgress.nextTier.multiplier}x`
-    : 'Top tier reached';
-
   return (
-    <div className="view-stack">
-      <section className="dashboard-card bilt-overview">
-        <div className="bilt-overview__meta">
-          <p className="eyebrow">Bilt spend</p>
-          <h2>{formatCurrency(state.biltSpend)}</h2>
-          <p className="bilt-overview__subline">
-            {housingProgress.rentPoints.toLocaleString()} rent pts · {currentTierLabel} ·{' '}
-            <span className="bilt-overview__next">{nextStepLabel}</span>
-          </p>
-        </div>
-        <BiltProgress
-          spend={state.biltSpend}
-          rent={rent}
-          progressPercent={housingProgress.progressPercent}
-          compact
-        />
-      </section>
-
-      <RotatingCategoriesCard state={state} />
+    <div className="progress">
+      {!hero && <span className="progress-cap">Spend progress</span>}
+      <div className="track">
+        <div className="fill" style={{ width: `${percent}%` }} />
+        {recAt != null && <span className="rec-line" style={{ left: `${recAt}%` }} />}
+      </div>
+      <div className="ticks">
+        {ticks.map((tick, index) => (
+          <span
+            key={tick.label}
+            className={['tick-lab', tick.on ? 'on' : '', index === ticks.length - 1 ? 'end' : '']
+              .filter(Boolean)
+              .join(' ')}
+            style={{ left: `${tick.left}%` }}
+          >
+            {tick.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function RotatingCategoriesCard({ state }: { state: RewardsState }) {
+function buildTicks(spend: number, rent: number) {
+  return housingTiers.map((tier) => ({
+    left: tier.ratio * 100,
+    label: formatCurrency(getSpendNeeded(rent, tier.ratio)),
+    on: spend >= getSpendNeeded(rent, tier.ratio),
+  }));
+}
+
+function Dashboard({
+  monthName,
+  state,
+  housingProgress,
+}: {
+  monthName: string;
+  state: RewardsState;
+  housingProgress: ReturnType<typeof getHousingProgress>;
+}) {
+  const rent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
+  const tierLabel = housingProgress.currentTier
+    ? `${mult(housingProgress.currentTier.multiplier)} tier`
+    : 'base tier';
+  const nextLabel = housingProgress.nextTier
+    ? `${formatCurrency(
+        getSpendNeeded(rent, housingProgress.nextTier.ratio) - state.biltSpend,
+      )} to ${mult(housingProgress.nextTier.multiplier)}`
+    : 'Top tier reached';
+
   return (
-    <section className="dashboard-card categories-overview">
-      <div className="categories-heading">
-        <div>
-          <p className="eyebrow">Quarterly rotating</p>
-          <h2>5% cash back</h2>
+    <>
+      <header className="scr-head">
+        <p className="eyebrow">Overview</p>
+        <h1 className="scr-title">{monthName}</h1>
+      </header>
+
+      <section className="card hero">
+        <div className="card-head">
+          <div className="stack" style={{ gap: 5 }}>
+            <p className="eyebrow">Bilt spend</p>
+            <div className="hero-amount">{formatCurrency(state.biltSpend)}</div>
+          </div>
         </div>
-        <span>{state.quarterMonths || 'Not set'}</span>
-      </div>
-      <RewardCard
-        cardName="Chase Freedom Flex"
-        categories={state.chaseCategories}
-        activated={state.chaseActivated}
-      />
-      <RewardCard
-        cardName="Discover"
-        categories={state.discoverCategories}
-        activated={state.discoverActivated}
-      />
-    </section>
+        <p className="hero-sub">
+          <b>{housingProgress.rentPoints.toLocaleString()} rent pts</b> &middot; {tierLabel} &middot;{' '}
+          <b>{nextLabel}</b>
+        </p>
+        <Progress
+          percent={housingProgress.progressPercent}
+          ticks={buildTicks(state.biltSpend, rent)}
+          hero
+        />
+      </section>
+
+      <section className="card">
+        <div className="card-head">
+          <div className="stack">
+            <p className="eyebrow">Quarterly rotating</p>
+            <h2 className="card-title">5% cash back</h2>
+          </div>
+          <span className="tag">{getQuarterRange(state.quarterMonths) || 'Not set'}</span>
+        </div>
+        <Reward
+          name="Chase Freedom Flex"
+          activated={state.chaseActivated}
+          categories={state.chaseCategories}
+        />
+        <Reward
+          name="Discover"
+          activated={state.discoverActivated}
+          categories={state.discoverCategories}
+        />
+      </section>
+    </>
   );
 }
 
-function RewardCard({
-  cardName,
-  categories,
+function Reward({
+  name,
   activated,
+  categories,
 }: {
-  cardName: string;
-  categories: string;
+  name: string;
   activated: boolean;
+  categories: string;
 }) {
   const categoryList = splitCategories(categories);
+  const two = categoryList.length > 0 && categoryList.length <= 2;
 
   return (
-    <article className={activated ? 'reward-card is-active' : 'reward-card'}>
-      <div className="reward-card__header">
-        <h3>{cardName}</h3>
-        <span className={activated ? 'activation-pill is-active' : 'activation-pill'}>
+    <article className={activated ? 'reward on' : 'reward'}>
+      <div className="reward-head">
+        <h4 className="reward-name">{name}</h4>
+        <span className={activated ? 'pill ok' : 'pill'}>
           {activated ? 'Confirmed' : 'Unconfirmed'}
         </span>
       </div>
       {categoryList.length > 0 ? (
-        <div className="category-icon-grid">
+        <div className={two ? 'tiles two' : 'tiles'}>
           {categoryList.map((category) => (
-            <CategoryTile category={category} activated={activated} key={category} />
+            <div className="tile" key={category}>
+              <span className="tile-ic">
+                <Icon name={getCategoryIcon(category)} />
+              </span>
+              <span>{toTitleCase(category)}</span>
+            </div>
           ))}
         </div>
       ) : (
-        <p className="empty-text">Add in Quarterly</p>
+        <p className="fine">Add categories in Quarterly</p>
       )}
     </article>
   );
 }
 
-function CategoryTile({ category, activated }: { category: string; activated: boolean }) {
-  const Icon = getCategoryIcon(category);
-
-  return (
-    <div className={activated ? 'category-tile is-active' : 'category-tile'}>
-      <span>
-        <Icon size={19} aria-hidden="true" />
-      </span>
-      <strong>{toTitleCase(category)}</strong>
-    </div>
-  );
-}
-
-function getCategoryIcon(category: string): LucideIcon {
+function getCategoryIcon(category: string): string {
   const normalized = category.toLowerCase();
 
   if (normalized.includes('ev') || normalized.includes('charging')) {
-    return Zap;
+    return 'zap';
   }
   if (normalized.includes('amazon')) {
-    return ShoppingBag;
+    return 'bag';
   }
   if (normalized.includes('whole foods')) {
-    return Beef;
+    return 'leaf';
   }
   if (normalized.includes('feeding america') || normalized.includes('charity')) {
-    return HeartHandshake;
+    return 'heart';
   }
   if (normalized.includes('home improvement') || normalized.includes('home')) {
-    return Home;
+    return 'home';
   }
   if (normalized.includes('cash') || normalized.includes('pay')) {
-    return BadgeDollarSign;
+    return 'dollar';
   }
   if (normalized.includes('gas') || normalized.includes('fuel')) {
-    return Fuel;
+    return 'fuel';
   }
   if (normalized.includes('restaurant') || normalized.includes('dining')) {
-    return Utensils;
+    return 'utensils';
   }
-  if (normalized.includes('entertainment') || normalized.includes('music') || normalized.includes('live')) {
-    return Music;
+  if (
+    normalized.includes('entertainment') ||
+    normalized.includes('music') ||
+    normalized.includes('live')
+  ) {
+    return 'music';
   }
   if (normalized.includes('grocery')) {
-    return ShoppingCart;
+    return 'cart';
   }
-  if (normalized.includes('wholesale') || normalized.includes('club')) {
-    return Store;
+  if (
+    normalized.includes('wholesale') ||
+    normalized.includes('club') ||
+    normalized.includes('drugstore')
+  ) {
+    return 'store';
   }
   if (normalized.includes('travel') || normalized.includes('flight')) {
-    return Plane;
+    return 'plane';
+  }
+  if (normalized.includes('lyft') || normalized.includes('uber')) {
+    return 'car';
   }
   if (normalized.includes('shop')) {
-    return ShoppingBag;
+    return 'bag';
   }
-  return Tag;
-}
-
-function BiltProgress({
-  spend,
-  rent,
-  progressPercent,
-  compact = false,
-}: {
-  spend: number;
-  rent: number;
-  progressPercent: number;
-  compact?: boolean;
-}) {
-  return (
-    <div className="progress-wrap" aria-label="Bilt housing-only spend progress">
-      <span className="progress-label">Spend progress</span>
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
-        {housingTiers.map((tier) => (
-          <span
-            className={tier.ratio === 0.5 ? 'tier-marker recommended' : 'tier-marker'}
-            style={{ left: `${tier.ratio * 100}%` }}
-            key={tier.ratio}
-          />
-        ))}
-      </div>
-      <div className="marker-labels">
-        {housingTiers.map((tier) => (
-          <span
-            className={[
-              'marker-label',
-              tier.ratio === 0.5 ? 'recommended' : '',
-              tier.ratio === 1 ? 'is-edge-end' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            style={{ left: `${tier.ratio * 100}%` }}
-            key={tier.ratio}
-          >
-            {formatCurrency(getSpendNeeded(rent, tier.ratio))}
-          </span>
-        ))}
-      </div>
-      {!compact && (
-        <div className="progress-caption">
-          <span>{formatCurrency(spend)} non-housing spend</span>
-          <span>{formatCurrency(getSpendNeeded(rent, 0.5))} 50% tier</span>
-        </div>
-      )}
-    </div>
-  );
+  return 'tag';
 }
 
 function QuarterlySetup({
@@ -644,13 +650,9 @@ function QuarterlySetup({
   suggestion: CategorySuggestion | null;
 }) {
   const isConfirmed = state.chaseActivated && state.discoverActivated;
-  const confirmCategories = () => {
-    if (!suggestion) {
-      updateState('confirmedQuarterKey', getCurrentQuarterKey());
-    } else {
-      updateState('confirmedQuarterKey', suggestion.key);
-    }
 
+  const confirmCategories = () => {
+    updateState('confirmedQuarterKey', suggestion ? suggestion.key : getCurrentQuarterKey());
     updateState('chaseActivated', true);
     updateState('discoverActivated', true);
     updateState('reminderDismissedQuarterKey', getCurrentQuarterKey());
@@ -664,121 +666,111 @@ function QuarterlySetup({
   };
 
   return (
-    <div className="view-stack page-pad">
-      <header className="page-title page-title--quarterly">
-        <h1>{state.quarterMonths}</h1>
+    <>
+      <header className="scr-head">
+        <p className="eyebrow">Rotating categories</p>
+        <h1 className="scr-title">{getQuarterRange(state.quarterMonths)}</h1>
       </header>
 
-      <section className="field-card suggestion-card">
-        <div className="suggestion-heading">
-          <div>
-            <span>{isConfirmed ? 'Quarterly Rotating Categories' : 'Review categories'}</span>
-            <p>
+      <section className="card">
+        <div className="card-head">
+          <div className="stack">
+            <h2 className="card-title">Quarterly rotating</h2>
+            <p className="fine">
               {isConfirmed
                 ? 'These 5% categories are locked for the quarter.'
                 : 'Edit if needed, then confirm after activating both cards.'}
             </p>
           </div>
-          <button type="button" onClick={isConfirmed ? editAgain : confirmCategories}>
-            {isConfirmed ? 'Edit' : 'Activated and Apply'}
+          <button
+            type="button"
+            className={isConfirmed ? 'btn ghost' : 'btn'}
+            onClick={isConfirmed ? editAgain : confirmCategories}
+          >
+            {isConfirmed ? 'Edit' : 'Confirm'}
           </button>
         </div>
 
         {isConfirmed ? (
-          <div className="confirmed-category-preview">
-            <RewardCard
-              cardName="Chase Freedom Flex"
-              categories={state.chaseCategories}
+          <>
+            <Reward
+              name="Chase Freedom Flex"
               activated={state.chaseActivated}
+              categories={state.chaseCategories}
             />
-            <RewardCard
-              cardName="Discover"
-              categories={state.discoverCategories}
+            <Reward
+              name="Discover"
               activated={state.discoverActivated}
+              categories={state.discoverCategories}
             />
-          </div>
-        ) : suggestion ? (
-          <div className="suggestion-list">
-            <SuggestionRow
-              label="Chase"
-              categories={splitCategories(state.chaseCategories)}
-              source={suggestion.chaseSource}
-              sourceUrl={suggestion.chaseSourceUrl}
-            />
-            <SuggestionRow
-              label="Discover"
-              categories={splitCategories(state.discoverCategories)}
-              source={suggestion.discoverSource}
-              sourceUrl={suggestion.discoverSourceUrl}
-            />
-          </div>
+          </>
         ) : (
-          <p className="empty-text">No sourced suggestions saved for this quarter yet.</p>
+          <>
+            {suggestion && (
+              <div className="suggest">
+                <SuggestionRow
+                  label="Chase"
+                  categories={splitCategories(state.chaseCategories)}
+                  source={suggestion.chaseSource}
+                  sourceUrl={suggestion.chaseSourceUrl}
+                />
+                <SuggestionRow
+                  label="Discover"
+                  categories={splitCategories(state.discoverCategories)}
+                  source={suggestion.discoverSource}
+                  sourceUrl={suggestion.discoverSourceUrl}
+                />
+              </div>
+            )}
+            <label className="field">
+              <span>Chase Freedom Flex</span>
+              <textarea
+                value={state.chaseCategories}
+                onChange={(event) => updateState('chaseCategories', event.target.value)}
+                placeholder="Gas stations, EV charging"
+                rows={3}
+              />
+            </label>
+            <label className="field">
+              <span>Discover</span>
+              <textarea
+                value={state.discoverCategories}
+                onChange={(event) => updateState('discoverCategories', event.target.value)}
+                placeholder="Restaurants, grocery stores"
+                rows={3}
+              />
+            </label>
+          </>
         )}
       </section>
 
-      {isConfirmed && <AlwaysOnRewardsSection />}
-
-      {!isConfirmed && (
-        <>
-          <label className="field-card">
-            <span>Chase Freedom Flex</span>
-            <textarea
-              value={state.chaseCategories}
-              onChange={(event) => updateState('chaseCategories', event.target.value)}
-              placeholder="Gas stations, EV charging"
-              rows={3}
-            />
-          </label>
-
-          <label className="field-card">
-            <span>Discover</span>
-            <textarea
-              value={state.discoverCategories}
-              onChange={(event) => updateState('discoverCategories', event.target.value)}
-              placeholder="Restaurants, grocery stores"
-              rows={3}
-            />
-          </label>
-        </>
-      )}
-    </div>
-  );
-}
-
-function AlwaysOnRewardsSection() {
-  return (
-    <section className="field-card always-on-card">
-      <div className="always-on-heading">
-        <span>Always-On Rewards</span>
-        <p>Earn these outside the quarterly rotating categories.</p>
-      </div>
-
-      <div className="always-on-list">
-        {alwaysOnRewards.map((card) => (
-          <article className="always-on-bank" key={card.cardName}>
-            <div className="always-on-bank__header">
-              <strong>{card.cardName}</strong>
+      {isConfirmed && (
+        <section className="card">
+          <div className="card-head">
+            <div className="stack">
+              <p className="eyebrow">Always on</p>
+              <h2 className="card-title">Outside the rotation</h2>
             </div>
-            <div className="always-on-grid">
-              {card.rewards.map((reward) => {
-                const Icon = reward.icon;
-
-                return (
-                  <div className="always-on-reward" key={`${card.cardName}-${reward.label}`}>
-                    <span>
-                      <Icon size={16} aria-hidden="true" />
+          </div>
+          {alwaysOnRewards.map((bank) => (
+            <div className="bank" key={bank.cardName}>
+              <strong>{bank.cardName}</strong>
+              <div className="bank-grid">
+                {bank.rewards.map((reward) => (
+                  <div className="bank-cell" key={`${bank.cardName}-${reward.label}`}>
+                    <span className="ic">
+                      <Icon name={reward.icon} />
                     </span>
-                    <strong>{reward.rate}</strong>
-                    <p>{toTitleCase(reward.label)}</p>
+                    <span className="rate">{reward.rate}</span>
+                    <span className="nm">{toTitleCase(reward.label)}</span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </article>
-        ))}
-      </div>
-    </section>
+          ))}
+        </section>
+      )}
+    </>
   );
 }
 
@@ -794,8 +786,8 @@ function SuggestionRow({
   sourceUrl: string;
 }) {
   return (
-    <article className="suggestion-row">
-      <div>
+    <article className="suggest-row">
+      <div className="row-top">
         <strong>{label}</strong>
         <a href={sourceUrl} target="_blank" rel="noreferrer">
           {source}
@@ -831,38 +823,52 @@ function BiltTracker({
   const housingPoints = housingProgress.rentPoints;
   const biltCashPoints = biltCashProgress.rentPoints;
   const currentLabel = housingProgress.currentTier
-    ? `${housingProgress.currentTier.multiplier}x on rent`
+    ? `${mult(housingProgress.currentTier.multiplier)} on rent`
     : 'Base rent points';
   const nextLabel = housingProgress.nextTier
-    ? `${formatCurrency(getSpendNeeded(effectiveRent, housingProgress.nextTier.ratio) - spend)} to ${housingProgress.nextTier.multiplier}x`
+    ? `${formatCurrency(
+        getSpendNeeded(effectiveRent, housingProgress.nextTier.ratio) - spend,
+      )} to ${mult(housingProgress.nextTier.multiplier)}`
     : 'Top tier reached';
   const biltCashFullUnlockLabel =
     biltCashProgress.remainingCashNeeded > 0
       ? formatCurrency(biltCashProgress.remainingCashNeeded)
-      : `${formatCurrency(biltCashProgress.leftoverBiltCash)} Bilt Cash left`;
+      : `${formatCurrency(biltCashProgress.leftoverBiltCash)} BC left`;
   const biltCashSpendGapLabel =
     biltCashProgress.remainingSpendNeeded > 0
       ? formatCurrency(biltCashProgress.remainingSpendNeeded)
       : 'Full unlock reached';
   const biltCashStatusLabel =
-    biltCashProgress.rentPoints >= effectiveRent ? '1x on rent unlocked' : 'Partial 1x unlock';
+    biltCashProgress.rentPoints >= effectiveRent
+      ? `${mult(1)} on rent unlocked`
+      : `Partial ${mult(1)} unlock`;
 
   return (
-    <div className="view-stack page-pad">
-      <BiltAmountForm
-        spend={spend}
-        rent={rent}
-        onSpendChange={onSpendChange}
-        onRentChange={onRentChange}
-      />
+    <>
+      <header className="scr-head">
+        <p className="eyebrow">Rent rewards</p>
+        <h1 className="scr-title">Bilt</h1>
+      </header>
 
-      <section
-        className={`bilt-mode-switcher is-${mode}`}
-        aria-label="Bilt earning mode"
-      >
+      <div className="amount-form">
+        <AmountField
+          label="Non-housing spend"
+          value={spend}
+          onValueChange={onSpendChange}
+          ariaLabel="Current month Bilt non-housing spend"
+        />
+        <AmountField
+          label="Rent"
+          value={rent}
+          onValueChange={onRentChange}
+          ariaLabel="Current month rent amount"
+        />
+      </div>
+
+      <div className="seg" role="group" aria-label="Bilt earning mode">
         <button
           type="button"
-          className={mode === 'housing' ? 'is-active' : ''}
+          className={mode === 'housing' ? 'on' : ''}
           onClick={() => onModeChange('housing')}
           aria-pressed={mode === 'housing'}
         >
@@ -870,171 +876,138 @@ function BiltTracker({
         </button>
         <button
           type="button"
-          className={mode === 'cash' ? 'is-active' : ''}
+          className={mode === 'cash' ? 'on' : ''}
           onClick={() => onModeChange('cash')}
           aria-pressed={mode === 'cash'}
         >
           Bilt Cash
         </button>
-      </section>
+      </div>
 
-      <section className="bilt-comparison" aria-label="Rent points unlocked by mode">
-        <div className={mode === 'housing' ? 'is-active' : ''}>
-          <span>Housing-only</span>
-          <strong>{housingPoints.toLocaleString()} pts</strong>
+      <div className="compare" aria-label="Rent points unlocked by mode">
+        <div className={mode === 'housing' ? 'compare-cell on' : 'compare-cell'}>
+          <span className="lab">Housing-only</span>
+          <span className="big">{housingPoints.toLocaleString()} pts</span>
         </div>
-        <div className={mode === 'cash' ? 'is-active' : ''}>
-          <span>Bilt Cash</span>
-          <strong>{biltCashPoints.toLocaleString()} pts</strong>
+        <div className={mode === 'cash' ? 'compare-cell on' : 'compare-cell'}>
+          <span className="lab">Bilt Cash</span>
+          <span className="big">{biltCashPoints.toLocaleString()} pts</span>
         </div>
-      </section>
+      </div>
 
       {mode === 'housing' ? (
         <>
-          <section className="bilt-mode-card">
-            <div className="bilt-mode-card__heading">
-              <div>
+          <section className="card">
+            <div className="card-head">
+              <div className="stack">
                 <p className="eyebrow">Housing-only</p>
-                <h2>{housingPoints.toLocaleString()} rent points unlocked</h2>
+                <h2 className="card-title">
+                  {housingPoints.toLocaleString()} rent points unlocked
+                </h2>
               </div>
-              <span>{currentLabel}</span>
+              <span className="tag ok">{currentLabel}</span>
             </div>
-            <BiltProgress
-              spend={spend}
-              rent={effectiveRent}
-              progressPercent={housingProgress.progressPercent}
+            <Progress
+              percent={housingProgress.progressPercent}
+              ticks={buildTicks(spend, effectiveRent)}
+              recAt={50}
             />
-            <div className="mode-metrics">
-              <div>
-                <span>Next step</span>
-                <strong>{nextLabel}</strong>
+            <div className="metrics">
+              <div className="metric">
+                <span className="lab">Next step</span>
+                <span className="val">{nextLabel}</span>
               </div>
-              <div>
-                <span>Best value target</span>
-                <strong>{formatCurrency(getSpendNeeded(effectiveRent, 0.5))}</strong>
+              <div className="metric">
+                <span className="lab">Best-value target</span>
+                <span className="val">{formatCurrency(getSpendNeeded(effectiveRent, 0.5))}</span>
               </div>
             </div>
           </section>
 
-          <section className="tier-list" aria-label="Housing-only tiers">
-            {housingTiers.map((tier) => (
-              <div
-                className={
-                  spend >= getSpendNeeded(effectiveRent, tier.ratio)
-                    ? 'tier-row reached'
-                    : 'tier-row'
-                }
-                key={tier.ratio}
-              >
-                <span>{tier.label} spend</span>
-                <strong>
-                  {formatCurrency(getSpendNeeded(effectiveRent, tier.ratio))} → {tier.multiplier}x
-                </strong>
-              </div>
-            ))}
+          <section className="tiers" aria-label="Housing-only tiers">
+            {housingTiers.map((tier) => {
+              const reached = spend >= getSpendNeeded(effectiveRent, tier.ratio);
+              return (
+                <div className={reached ? 'tier hit' : 'tier'} key={tier.ratio}>
+                  <span>{tier.label} spend</span>
+                  <b>
+                    {formatCurrency(getSpendNeeded(effectiveRent, tier.ratio))} &rarr;{' '}
+                    {mult(tier.multiplier)}
+                  </b>
+                </div>
+              );
+            })}
           </section>
 
-          <p className="fine-print">
-            Housing-only skips 4% Bilt Cash and applies an automatic rent multiplier after
-            statement close.
+          <p className="fine">
+            Housing-only skips 4% Bilt Cash and applies an automatic rent multiplier after statement
+            close.
           </p>
         </>
       ) : (
         <>
-          <section className="bilt-mode-card bilt-mode-card--cash">
-            <div className="bilt-mode-card__heading">
-              <div>
+          <section className="card">
+            <div className="card-head">
+              <div className="stack">
                 <p className="eyebrow">Flexible Bilt Cash</p>
-                <h2>To unlock 1x on rent</h2>
+                <h2 className="card-title">To unlock {mult(1)} on rent</h2>
               </div>
-              <span>{biltCashStatusLabel}</span>
+              <span className="tag ok">{biltCashStatusLabel}</span>
             </div>
-            <div className="mode-metrics">
-              <div>
-                <span>BC still needed</span>
-                <strong>{biltCashFullUnlockLabel}</strong>
+            <div className="metrics">
+              <div className="metric">
+                <span className="lab">BC still needed</span>
+                <span className="val">{biltCashFullUnlockLabel}</span>
               </div>
-              <div>
-                <span>Spend still needed</span>
-                <strong>{biltCashSpendGapLabel}</strong>
+              <div className="metric">
+                <span className="lab">Spend still needed</span>
+                <span className="val">{biltCashSpendGapLabel}</span>
               </div>
             </div>
-            <div className="cash-progress" aria-label="Bilt Cash progress toward 1x rent points">
-              <div className="cash-progress__track">
-                <div
-                  className="cash-progress__fill"
-                  style={{ width: `${biltCashProgress.progressPercent}%` }}
-                />
+            <div className="progress">
+              <div className="track">
+                <div className="fill" style={{ width: `${biltCashProgress.progressPercent}%` }} />
               </div>
-              <div className="progress-caption">
+              <div className="bar-cap">
                 <span>{formatCurrency(biltCashProgress.biltCashEarned)} BC earned</span>
                 <span>
-                  {formatCurrency(biltCashProgress.fullUnlockCashNeeded)} BC for 1x rent
+                  {formatCurrency(biltCashProgress.fullUnlockCashNeeded)} BC for {mult(1)} rent
                 </span>
               </div>
             </div>
           </section>
 
-          <section className="summary-card bilt-rule-card bilt-cash-detail-card">
-            <div className="metric-row">
+          <section className="card">
+            <div className="row">
               <span>Rent points unlocked</span>
-              <strong>{biltCashPoints.toLocaleString()} pts</strong>
+              <b>{biltCashPoints.toLocaleString()} pts</b>
             </div>
-            <div className="metric-row">
+            <div className="row">
               <span>Maximum rent points</span>
-              <strong>{effectiveRent.toLocaleString()} pts</strong>
+              <b>{effectiveRent.toLocaleString()} pts</b>
             </div>
-            <div className="conversion-breakdown">
-              <span>Conversion</span>
-              <div>
-                <p>
+            <div className="stack" style={{ gap: 8 }}>
+              <p className="eyebrow">Conversion</p>
+              <div className="conv">
+                <div className="conv-row">
                   <span>Bilt Cash earned</span>
-                  <strong>4% of spend</strong>
-                </p>
-                <p>
+                  <b>4% of spend</b>
+                </div>
+                <div className="conv-row">
                   <span>Rent points unlocked</span>
-                  <strong>$3 Bilt Cash = 100 pts</strong>
-                </p>
+                  <b>$3 Bilt Cash = 100 pts</b>
+                </div>
               </div>
             </div>
           </section>
 
-          <p className="fine-print">
-            Bilt Cash mode earns 4% back on non-housing spend, then can use Bilt Cash to unlock up
-            to 1x points on rent.
+          <p className="fine">
+            Bilt Cash mode earns 4% back on non-housing spend, then applies Bilt Cash to unlock up to{' '}
+            {mult(1)} points on rent.
           </p>
         </>
       )}
-    </div>
-  );
-}
-
-function BiltAmountForm({
-  spend,
-  rent,
-  onSpendChange,
-  onRentChange,
-}: {
-  spend: number;
-  rent: number;
-  onSpendChange: (value: number) => void;
-  onRentChange: (value: number) => void;
-}) {
-  return (
-    <section className="bilt-amount-form">
-      <AmountField
-        label="Non-housing spend"
-        value={spend}
-        onValueChange={onSpendChange}
-        ariaLabel="Current month Bilt non-housing spend"
-      />
-        <AmountField
-          label="Rent"
-          value={rent}
-          onValueChange={onRentChange}
-          ariaLabel="Current month rent amount"
-        />
-    </section>
+    </>
   );
 }
 
@@ -1067,11 +1040,12 @@ function AmountField({
   };
 
   return (
-    <label className="amount-field">
+    <label className="amount">
       <span>{label}</span>
-      <div className="amount-input">
-        <span>$</span>
+      <div className="amount-val">
+        <span className="cur">$</span>
         <input
+          className="num"
           type="text"
           inputMode="decimal"
           value={inputValue}
