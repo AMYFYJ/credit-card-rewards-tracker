@@ -980,7 +980,6 @@ p {
 }
 .tab.on {
   color: var(--accent-strong);
-  background: rgba(236, 245, 242, 0.74);
 }
 .tab:active {
   transform: translateY(1px);
