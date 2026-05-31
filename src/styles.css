@@ -199,6 +199,10 @@ p {
   color: var(--accent-strong);
   background: var(--accent-tint);
 }
+.tag.warn {
+  color: #8a4b10;
+  background: #fff2df;
+}
 
 /* ---------- hero (the one gradient moment) ---------- */
 .hero {
@@ -663,6 +667,63 @@ p {
 .btn.ghost {
   color: var(--text-muted);
   background: var(--chip);
+}
+
+/* ---------- account sync ---------- */
+.sync-card {
+  gap: 12px;
+}
+.sync-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+}
+.sync-form input {
+  min-width: 0;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-inset);
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--surface-2);
+  outline: none;
+}
+.sync-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 122, 111, 0.14);
+}
+.sync-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--inset-border);
+  border-radius: var(--radius-inset);
+  background: var(--surface-2);
+}
+.sync-detail span,
+.sync-note {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.sync-detail span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-detail b {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sync-note {
+  margin: 0;
+  line-height: 1.4;
+}
+.sync-note.error {
+  color: #8a4b10;
 }
 
 /* ---------- bar caption + key/value rows (Bilt Cash) ---------- */

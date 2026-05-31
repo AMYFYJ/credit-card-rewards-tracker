@@ -1,20 +1,13 @@
-import { type CSSProperties, useEffect, useMemo, useState } from 'react';
-
-type TabId = 'dashboard' | 'setup' | 'bilt';
-type BiltMode = 'housing' | 'cash';
-
-type RewardsState = {
-  quarterMonths: string;
-  chaseCategories: string;
-  discoverCategories: string;
-  chaseActivated: boolean;
-  discoverActivated: boolean;
-  confirmedQuarterKey: string;
-  reminderDismissedQuarterKey: string;
-  biltSpend: number;
-  biltRent: number;
-  biltMode: BiltMode;
-};
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  DEFAULT_RENT_AMOUNT,
+  loadCachedDocument,
+  sanitizeSpend,
+  type BiltMode,
+  type RewardsState,
+  type TabId,
+} from './trackerState';
+import { useTrackerSync, type TrackerSync } from './useTrackerSync';
 
 type HousingTier = {
   label: string;
@@ -46,23 +39,8 @@ type AlwaysOnReward = {
   icon: string;
 };
 
-const STORAGE_KEY = 'credit-card-rewards-tracker:v1';
-const DEFAULT_RENT_AMOUNT = 1600;
 const BILT_CASH_RATE = 0.04;
 const BILT_CASH_PER_POINT = 0.03;
-
-const DEFAULT_STATE: RewardsState = {
-  quarterMonths: getCurrentQuarterMonths(),
-  chaseCategories: 'Gas stations, EV charging, live entertainment',
-  discoverCategories: 'Restaurants, wholesale clubs',
-  chaseActivated: false,
-  discoverActivated: false,
-  confirmedQuarterKey: '',
-  reminderDismissedQuarterKey: '',
-  biltSpend: 0,
-  biltRent: DEFAULT_RENT_AMOUNT,
-  biltMode: 'housing',
-};
 
 const tabs: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -156,44 +134,6 @@ const alwaysOnRewards: Array<{
   },
 ];
 
-function loadState(): RewardsState {
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      return DEFAULT_STATE;
-    }
-
-    const parsed = JSON.parse(saved) as Partial<RewardsState>;
-    return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      quarterMonths: getCurrentQuarterMonths(),
-      biltSpend: sanitizeSpend(parsed.biltSpend),
-      biltRent: sanitizeRent(parsed.biltRent),
-      biltMode: parsed.biltMode === 'cash' ? 'cash' : 'housing',
-      chaseActivated: Boolean(parsed.chaseActivated),
-      discoverActivated: Boolean(parsed.discoverActivated),
-      confirmedQuarterKey: parsed.confirmedQuarterKey ?? '',
-      reminderDismissedQuarterKey: parsed.reminderDismissedQuarterKey ?? '',
-    };
-  } catch {
-    return DEFAULT_STATE;
-  }
-}
-
-function sanitizeSpend(value: unknown): number {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-  return Math.max(0, numeric);
-}
-
-function sanitizeRent(value: unknown): number {
-  const numeric = sanitizeSpend(value);
-  return numeric > 0 ? numeric : DEFAULT_RENT_AMOUNT;
-}
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -210,16 +150,6 @@ function getCurrentQuarterKey(): string {
   const now = new Date();
   const quarter = Math.floor(now.getMonth() / 3) + 1;
   return `${now.getFullYear()}-Q${quarter}`;
-}
-
-function getCurrentQuarterMonths(): string {
-  const quarterMonths = [
-    ['Jan', 'Feb', 'Mar'],
-    ['Apr', 'May', 'Jun'],
-    ['Jul', 'Aug', 'Sep'],
-    ['Oct', 'Nov', 'Dec'],
-  ];
-  return quarterMonths[Math.floor(new Date().getMonth() / 3)].join(', ');
 }
 
 function getQuarterRange(months: string): string {
@@ -306,7 +236,8 @@ function mult(value: number): string {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
-  const [state, setState] = useState<RewardsState>(() => loadState());
+  const [state, setState] = useState<RewardsState>(() => loadCachedDocument().state);
+  const sync = useTrackerSync(state, setState);
   const monthName = useMemo(() => getCurrentMonthName(), []);
   const currentQuarterKey = useMemo(() => getCurrentQuarterKey(), []);
   const currentQuarterSuggestion = categorySuggestions[currentQuarterKey] ?? null;
@@ -318,10 +249,6 @@ export default function App() {
   const shouldShowQuarterReminder =
     state.confirmedQuarterKey !== currentQuarterKey &&
     state.reminderDismissedQuarterKey !== currentQuarterKey;
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
 
   useEffect(() => {
     if (!currentQuarterSuggestion || state.confirmedQuarterKey === currentQuarterSuggestion.key) {
@@ -362,7 +289,12 @@ export default function App() {
 
       <div className="screen-scroll">
         {activeTab === 'dashboard' && (
-          <Dashboard monthName={monthName} state={state} housingProgress={housingProgress} />
+          <Dashboard
+            monthName={monthName}
+            state={state}
+            housingProgress={housingProgress}
+            sync={sync}
+          />
         )}
         {activeTab === 'setup' && (
           <QuarterlySetup
@@ -496,10 +428,12 @@ function Dashboard({
   monthName,
   state,
   housingProgress,
+  sync,
 }: {
   monthName: string;
   state: RewardsState;
   housingProgress: ReturnType<typeof getHousingProgress>;
+  sync: TrackerSync;
 }) {
   const rent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
   const tierLabel = housingProgress.currentTier
@@ -517,6 +451,8 @@ function Dashboard({
         <p className="eyebrow">Overview</p>
         <h1 className="scr-title">{monthName}</h1>
       </header>
+
+      <SyncPanel sync={sync} />
 
       <section className="card hero">
         <div className="card-head">
@@ -557,6 +493,103 @@ function Dashboard({
       </section>
     </>
   );
+}
+
+function SyncPanel({ sync }: { sync: TrackerSync }) {
+  const [email, setEmail] = useState(sync.userEmail ?? '');
+
+  useEffect(() => {
+    if (sync.userEmail) {
+      setEmail(sync.userEmail);
+    }
+  }, [sync.userEmail]);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || sync.isSendingLink || !sync.isConfigured) {
+      return;
+    }
+
+    void sync.sendMagicLink(trimmedEmail);
+  };
+
+  const statusLabel = getSyncStatusLabel(sync.status);
+
+  return (
+    <section className="card sync-card">
+      <div className="card-head">
+        <div className="stack">
+          <p className="eyebrow">Account</p>
+          <h2 className="card-title">Sync</h2>
+        </div>
+        <span className={sync.status === 'error' ? 'tag warn' : 'tag ok'}>{statusLabel}</span>
+      </div>
+
+      {sync.userEmail ? (
+        <>
+          <div className="sync-detail">
+            <span>{sync.userEmail}</span>
+            <b>{formatSyncTime(sync.lastSavedAt)}</b>
+          </div>
+          <button type="button" className="btn ghost" onClick={() => void sync.signOut()}>
+            Sign out
+          </button>
+        </>
+      ) : (
+        <form className="sync-form" onSubmit={handleSubmit}>
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+            aria-label="Email address"
+            disabled={!sync.isConfigured || sync.isSendingLink}
+          />
+          <button
+            type="submit"
+            className="btn"
+            disabled={!email.trim() || !sync.isConfigured || sync.isSendingLink}
+          >
+            {sync.isSendingLink ? 'Sending' : 'Send link'}
+          </button>
+        </form>
+      )}
+
+      {sync.message && (
+        <p className={sync.status === 'error' ? 'sync-note error' : 'sync-note'}>
+          {sync.message}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function getSyncStatusLabel(status: TrackerSync['status']): string {
+  const labels: Record<TrackerSync['status'], string> = {
+    'sign-in': 'Sign in',
+    saving: 'Saving',
+    saved: 'Saved',
+    offline: 'Offline',
+    error: 'Sync error',
+  };
+
+  return labels[status];
+}
+
+function formatSyncTime(value: string | null): string {
+  if (!value) {
+    return 'Not synced';
+  }
+
+  return `Saved ${new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))}`;
 }
 
 function Reward({
