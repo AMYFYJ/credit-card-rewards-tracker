@@ -1,4 +1,5 @@
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
+import { UserRound, X } from 'lucide-react';
 import {
   DEFAULT_RENT_AMOUNT,
   loadCachedDocument,
@@ -236,6 +237,7 @@ function mult(value: number): string {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [state, setState] = useState<RewardsState>(() => loadCachedDocument().state);
   const sync = useTrackerSync(state, setState);
   const monthName = useMemo(() => getCurrentMonthName(), []);
@@ -294,6 +296,7 @@ export default function App() {
             state={state}
             housingProgress={housingProgress}
             sync={sync}
+            onOpenSync={() => setIsSyncOpen(true)}
           />
         )}
         {activeTab === 'setup' && (
@@ -315,6 +318,8 @@ export default function App() {
           />
         )}
       </div>
+
+      {isSyncOpen && <SyncDialog sync={sync} onClose={() => setIsSyncOpen(false)} />}
 
       <nav className="tabbar" aria-label="Primary navigation">
         {tabs.map((tab) => {
@@ -429,11 +434,13 @@ function Dashboard({
   state,
   housingProgress,
   sync,
+  onOpenSync,
 }: {
   monthName: string;
   state: RewardsState;
   housingProgress: ReturnType<typeof getHousingProgress>;
   sync: TrackerSync;
+  onOpenSync: () => void;
 }) {
   const rent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
   const tierLabel = housingProgress.currentTier
@@ -447,12 +454,21 @@ function Dashboard({
 
   return (
     <>
-      <header className="scr-head">
-        <p className="eyebrow">Overview</p>
-        <h1 className="scr-title">{monthName}</h1>
+      <header className="scr-head dashboard-head">
+        <div>
+          <p className="eyebrow">Overview</p>
+          <h1 className="scr-title">{monthName}</h1>
+        </div>
+        <button
+          type="button"
+          className={`sync-trigger ${sync.status === 'error' ? 'warn' : ''}`}
+          onClick={onOpenSync}
+          aria-label={`Open account sync (${getSyncStatusLabel(sync.status)})`}
+        >
+          <UserRound size={18} aria-hidden="true" />
+          <span className={`sync-dot ${sync.status}`} aria-hidden="true" />
+        </button>
       </header>
-
-      <SyncPanel sync={sync} />
 
       <section className="card hero">
         <div className="card-head">
@@ -495,7 +511,37 @@ function Dashboard({
   );
 }
 
-function SyncPanel({ sync }: { sync: TrackerSync }) {
+function SyncDialog({ sync, onClose }: { sync: TrackerSync; onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="sync-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="sync-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sync-dialog-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="icon-btn close" onClick={onClose} aria-label="Close sync">
+          <X size={17} aria-hidden="true" />
+        </button>
+        <SyncPanel sync={sync} titleId="sync-dialog-title" />
+      </section>
+    </div>
+  );
+}
+
+function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
   const [email, setEmail] = useState(sync.userEmail ?? '');
 
   useEffect(() => {
@@ -517,11 +563,13 @@ function SyncPanel({ sync }: { sync: TrackerSync }) {
   const statusLabel = getSyncStatusLabel(sync.status);
 
   return (
-    <section className="card sync-card">
+    <div className="sync-card">
       <div className="card-head">
         <div className="stack">
           <p className="eyebrow">Account</p>
-          <h2 className="card-title">Sync</h2>
+          <h2 className="card-title" id={titleId}>
+            Sync
+          </h2>
         </div>
         <span className={sync.status === 'error' ? 'tag warn' : 'tag ok'}>{statusLabel}</span>
       </div>
@@ -563,7 +611,7 @@ function SyncPanel({ sync }: { sync: TrackerSync }) {
           {sync.message}
         </p>
       )}
-    </section>
+    </div>
   );
 }
 
