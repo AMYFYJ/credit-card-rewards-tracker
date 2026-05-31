@@ -759,11 +759,17 @@ p {
   padding-right: 42px;
 }
 .sync-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sync-fields {
+  display: flex;
+  flex-direction: column;
   gap: 9px;
 }
-.sync-form input {
+.sync-fields input {
+  width: 100%;
   min-width: 0;
   border: 1px solid var(--card-border);
   border-radius: var(--radius-inset);
@@ -772,9 +778,18 @@ p {
   background: var(--surface-2);
   outline: none;
 }
-.sync-form input:focus {
+.sync-fields input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 122, 111, 0.14);
+}
+.sync-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.sync-actions .btn {
+  min-width: 0;
+  text-align: center;
 }
 .sync-detail {
   display: flex;

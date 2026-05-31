@@ -543,6 +543,7 @@ function SyncDialog({ sync, onClose }: { sync: TrackerSync; onClose: () => void 
 
 function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
   const [email, setEmail] = useState(sync.userEmail ?? '');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (sync.userEmail) {
@@ -553,14 +554,24 @@ function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || sync.isSendingLink || !sync.isConfigured) {
+    if (!canSubmitAuth(trimmedEmail, password, sync)) {
       return;
     }
 
-    void sync.sendMagicLink(trimmedEmail);
+    void sync.signInWithPassword(trimmedEmail, password);
+  };
+
+  const handleCreateAccount = () => {
+    const trimmedEmail = email.trim();
+    if (!canSubmitAuth(trimmedEmail, password, sync)) {
+      return;
+    }
+
+    void sync.signUpWithPassword(trimmedEmail, password);
   };
 
   const statusLabel = getSyncStatusLabel(sync.status);
+  const canSubmit = canSubmitAuth(email.trim(), password, sync);
 
   return (
     <div className="sync-card">
@@ -586,23 +597,41 @@ function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
         </>
       ) : (
         <form className="sync-form" onSubmit={handleSubmit}>
-          <input
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-            aria-label="Email address"
-            disabled={!sync.isConfigured || sync.isSendingLink}
-          />
-          <button
-            type="submit"
-            className="btn"
-            disabled={!email.trim() || !sync.isConfigured || sync.isSendingLink}
-          >
-            {sync.isSendingLink ? 'Sending' : 'Send link'}
-          </button>
+          <div className="sync-fields">
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              aria-label="Email address"
+              disabled={!sync.isConfigured || sync.isSubmittingAuth}
+            />
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Password"
+              aria-label="Password"
+              minLength={6}
+              disabled={!sync.isConfigured || sync.isSubmittingAuth}
+            />
+          </div>
+          <div className="sync-actions">
+            <button type="submit" className="btn" disabled={!canSubmit}>
+              {sync.isSubmittingAuth ? 'Signing in' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={handleCreateAccount}
+              disabled={!canSubmit}
+            >
+              Create account
+            </button>
+          </div>
         </form>
       )}
 
@@ -613,6 +642,10 @@ function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
       )}
     </div>
   );
+}
+
+function canSubmitAuth(email: string, password: string, sync: TrackerSync): boolean {
+  return Boolean(email && password.length >= 6 && sync.isConfigured && !sync.isSubmittingAuth);
 }
 
 function getSyncStatusLabel(status: TrackerSync['status']): string {

@@ -26,7 +26,8 @@ Without those env vars, the app still works locally and saves to browser storage
 
 Run `supabase/schema.sql` in the Supabase SQL editor. It creates the `reward_tracker_states` table, enables row-level security, and lets each signed-in user read and write only their own synced tracker state.
 
-In Supabase Auth settings, enable email magic links and add these redirect URLs:
+In Supabase Auth settings, enable email/password signups and turn off Confirm email for direct
+in-app sign-in. Then add these redirect URLs for any future auth flows that need redirects:
 
 - `http://localhost:5173`
 - Your Cloudflare Pages production URL, such as `https://credit-card-rewards-tracker.pages.dev`

@@ -16,8 +16,9 @@ export type TrackerSync = {
   lastSavedAt: string | null;
   message: string;
   isConfigured: boolean;
-  isSendingLink: boolean;
-  sendMagicLink: (email: string) => Promise<void>;
+  isSubmittingAuth: boolean;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -34,7 +35,7 @@ export function useTrackerSync(
   const [status, setStatus] = useState<SyncStatus>('sign-in');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [message, setMessage] = useState('');
-  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const stateRef = useRef(state);
   const lastSavedAtRef = useRef<string | null>(lastSavedAt);
   const loadedRemoteUserIdRef = useRef<string | null>(null);
@@ -282,24 +283,22 @@ export function useTrackerSync(
     return () => window.clearTimeout(timeoutId);
   }, [isOnline, isRemoteReady, session?.user?.id, state]);
 
-  const sendMagicLink = async (email: string) => {
+  const signInWithPassword = async (email: string, password: string) => {
     if (!supabase) {
       setStatus('error');
       setMessage('Add Supabase env vars to enable sync.');
       return;
     }
 
-    setIsSendingLink(true);
+    setIsSubmittingAuth(true);
     setMessage('');
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
+      password,
     });
 
-    setIsSendingLink(false);
+    setIsSubmittingAuth(false);
 
     if (error) {
       setStatus('error');
@@ -307,8 +306,41 @@ export function useTrackerSync(
       return;
     }
 
+    setStatus('saving');
+    setMessage('');
+  };
+
+  const signUpWithPassword = async (email: string, password: string) => {
+    if (!supabase) {
+      setStatus('error');
+      setMessage('Add Supabase env vars to enable sync.');
+      return;
+    }
+
+    setIsSubmittingAuth(true);
+    setMessage('');
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    setIsSubmittingAuth(false);
+
+    if (error) {
+      setStatus('error');
+      setMessage(error.message);
+      return;
+    }
+
+    if (data.session) {
+      setStatus('saving');
+      setMessage('');
+      return;
+    }
+
     setStatus('sign-in');
-    setMessage('Check your email for the sign-in link.');
+    setMessage('Account created. Disable Confirm email in Supabase to sign in immediately.');
   };
 
   const signOut = async () => {
@@ -338,8 +370,9 @@ export function useTrackerSync(
     lastSavedAt,
     message,
     isConfigured: isSupabaseConfigured,
-    isSendingLink,
-    sendMagicLink,
+    isSubmittingAuth,
+    signInWithPassword,
+    signUpWithPassword,
     signOut,
   };
 }
