@@ -17,7 +17,7 @@ Copy `.env.example` to `.env.local` and fill in the Supabase values to enable ac
 
 ```sh
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
 Without those env vars, the app still works locally and saves to browser storage.
@@ -38,6 +38,6 @@ Create a Cloudflare Pages project from this repository with:
 - Build command: `npm run build`
 - Output directory: `dist`
 - Node version: `22`
-- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 The app is configured as a PWA. After deployment, open the Cloudflare Pages URL on your phone and add it to the home screen.
