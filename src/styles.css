@@ -268,23 +268,33 @@ p {
 }
 .ticks {
   position: relative;
-  height: 14px;
+  height: 20px;
 }
 .tick-lab {
   position: absolute;
   top: 0;
+  left: var(--tick-left);
   transform: translateX(-50%);
+  max-width: 74px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
+  line-height: 1.2;
   font-weight: 600;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-align: center;
 }
 .hero .tick-lab {
   color: var(--hero-faint);
 }
+.tick-lab.first {
+  transform: translateX(-30%);
+}
 .tick-lab.end {
   transform: translateX(-100%);
+  text-align: right;
 }
 .tick-lab.on {
   color: var(--accent-strong);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 
 type TabId = 'dashboard' | 'setup' | 'bilt';
 type BiltMode = 'housing' | 'cash';
@@ -20,6 +20,13 @@ type HousingTier = {
   label: string;
   ratio: number;
   multiplier: number;
+};
+
+type ProgressTick = {
+  id: string;
+  left: number;
+  label: string;
+  on: boolean;
 };
 
 type CategorySuggestion = {
@@ -443,7 +450,7 @@ function Progress({
   recAt,
 }: {
   percent: number;
-  ticks: Array<{ left: number; label: string; on: boolean }>;
+  ticks: ProgressTick[];
   hero?: boolean;
   recAt?: number;
 }) {
@@ -457,11 +464,16 @@ function Progress({
       <div className="ticks">
         {ticks.map((tick, index) => (
           <span
-            key={tick.label}
-            className={['tick-lab', tick.on ? 'on' : '', index === ticks.length - 1 ? 'end' : '']
+            key={tick.id}
+            className={[
+              'tick-lab',
+              tick.on ? 'on' : '',
+              index === 0 ? 'first' : '',
+              index === ticks.length - 1 ? 'end' : '',
+            ]
               .filter(Boolean)
               .join(' ')}
-            style={{ left: `${tick.left}%` }}
+            style={{ '--tick-left': `${tick.left}%` } as CSSProperties}
           >
             {tick.label}
           </span>
@@ -473,6 +485,7 @@ function Progress({
 
 function buildTicks(spend: number, rent: number) {
   return housingTiers.map((tier) => ({
+    id: tier.label,
     left: tier.ratio * 100,
     label: formatCurrency(getSpendNeeded(rent, tier.ratio)),
     on: spend >= getSpendNeeded(rent, tier.ratio),
