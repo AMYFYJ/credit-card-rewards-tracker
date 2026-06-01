@@ -29,10 +29,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Supabase deploy config
+        id: sync_config
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -n "${VITE_SUPABASE_URL}" ] && [ -n "${VITE_SUPABASE_PUBLISHABLE_KEY}" ]; then
+            echo "configured=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::Skipping deploy because Supabase repository secrets are not configured."
+            echo "configured=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Build app
+        if: steps.sync_config.outputs.configured == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build -- --base=/credit-card-rewards-tracker/
 
       - name: Publish to gh-pages
+        if: steps.sync_config.outputs.configured == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

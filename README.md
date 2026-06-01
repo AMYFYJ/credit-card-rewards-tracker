@@ -30,7 +30,18 @@ In Supabase Auth settings, enable email/password signups and turn off Confirm em
 in-app sign-in. Then add these redirect URLs for any future auth flows that need redirects:
 
 - `http://localhost:5173`
+- `https://amyfyj.github.io/credit-card-rewards-tracker/`
 - Your Cloudflare Pages production URL, such as `https://credit-card-rewards-tracker.pages.dev`
+
+## GitHub Pages deployment
+
+The app deploys to GitHub Pages from the `gh-pages` branch. The deploy workflow builds on each push
+to `main`; add these repository secrets so account sync is included in deployed builds:
+
+```sh
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+```
 
 ## Cloudflare Pages deployment
 
