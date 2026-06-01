@@ -2,6 +2,8 @@ import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from
 import { UserRound, X } from 'lucide-react';
 import {
   DEFAULT_RENT_AMOUNT,
+  getCurrentQuarterKey,
+  getCurrentQuarterMonths,
   loadCachedDocument,
   sanitizeSpend,
   type BiltMode,
@@ -147,12 +149,6 @@ function getCurrentMonthName(): string {
   return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date());
 }
 
-function getCurrentQuarterKey(): string {
-  const now = new Date();
-  const quarter = Math.floor(now.getMonth() / 3) + 1;
-  return `${now.getFullYear()}-Q${quarter}`;
-}
-
 function getQuarterRange(months: string): string {
   const parts = months
     .split(',')
@@ -238,39 +234,63 @@ function mult(value: number): string {
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [isSyncOpen, setIsSyncOpen] = useState(false);
+  const [dismissedReminderQuarterKey, setDismissedReminderQuarterKey] = useState('');
   const [state, setState] = useState<RewardsState>(() => loadCachedDocument().state);
   const sync = useTrackerSync(state, setState);
   const monthName = useMemo(() => getCurrentMonthName(), []);
   const currentQuarterKey = useMemo(() => getCurrentQuarterKey(), []);
+  const currentQuarterMonths = useMemo(() => getCurrentQuarterMonths(), []);
   const currentQuarterSuggestion = categorySuggestions[currentQuarterKey] ?? null;
+  const hasConfirmedCurrentQuarter =
+    state.categoryQuarterKey === currentQuarterKey &&
+    state.confirmedQuarterKey === currentQuarterKey;
   const effectiveBiltRent = state.biltRent > 0 ? state.biltRent : DEFAULT_RENT_AMOUNT;
   const housingProgress = useMemo(
     () => getHousingProgress(state.biltSpend, effectiveBiltRent),
     [effectiveBiltRent, state.biltSpend],
   );
   const shouldShowQuarterReminder =
-    state.confirmedQuarterKey !== currentQuarterKey &&
-    state.reminderDismissedQuarterKey !== currentQuarterKey;
+    !hasConfirmedCurrentQuarter && dismissedReminderQuarterKey !== currentQuarterKey;
 
   useEffect(() => {
-    if (!currentQuarterSuggestion || state.confirmedQuarterKey === currentQuarterSuggestion.key) {
+    if (state.categoryQuarterKey === currentQuarterKey) {
       return;
     }
 
-    setState((current) => ({
-      ...current,
-      quarterMonths: currentQuarterSuggestion.quarterMonths,
-      chaseCategories: currentQuarterSuggestion.chaseCategories.join(', '),
-      discoverCategories: currentQuarterSuggestion.discoverCategories.join(', '),
-      chaseActivated: false,
-      discoverActivated: false,
-      confirmedQuarterKey: '',
-      reminderDismissedQuarterKey:
-        current.reminderDismissedQuarterKey === currentQuarterSuggestion.key
-          ? ''
-          : current.reminderDismissedQuarterKey,
-    }));
-  }, [currentQuarterSuggestion, state.confirmedQuarterKey]);
+    setState((current) => {
+      if (current.categoryQuarterKey === currentQuarterKey) {
+        return current;
+      }
+
+      let next = current;
+      const assign = <Key extends keyof RewardsState>(key: Key, value: RewardsState[Key]) => {
+        if (next[key] === value) {
+          return;
+        }
+        next = next === current ? { ...current } : next;
+        next[key] = value;
+      };
+
+      assign('categoryQuarterKey', currentQuarterKey);
+      assign('quarterMonths', currentQuarterSuggestion?.quarterMonths ?? currentQuarterMonths);
+      assign('chaseActivated', false);
+      assign('discoverActivated', false);
+      assign('confirmedQuarterKey', '');
+      assign('reminderDismissedQuarterKey', '');
+
+      if (currentQuarterSuggestion) {
+        assign('chaseCategories', currentQuarterSuggestion.chaseCategories.join(', '));
+        assign('discoverCategories', currentQuarterSuggestion.discoverCategories.join(', '));
+      }
+
+      return next;
+    });
+  }, [
+    currentQuarterKey,
+    currentQuarterMonths,
+    currentQuarterSuggestion,
+    state.categoryQuarterKey,
+  ]);
 
   const updateState = <Key extends keyof RewardsState>(key: Key, value: RewardsState[Key]) => {
     setState((current) => ({ ...current, [key]: value }));
@@ -282,10 +302,10 @@ export default function App() {
         <QuarterReminderModal
           quarterMonths={state.quarterMonths}
           onReview={() => {
-            updateState('reminderDismissedQuarterKey', currentQuarterKey);
+            setDismissedReminderQuarterKey(currentQuarterKey);
             setActiveTab('setup');
           }}
-          onDismiss={() => updateState('reminderDismissedQuarterKey', currentQuarterKey)}
+          onDismiss={() => setDismissedReminderQuarterKey(currentQuarterKey)}
         />
       )}
 
@@ -294,6 +314,7 @@ export default function App() {
           <Dashboard
             monthName={monthName}
             state={state}
+            hasConfirmedCurrentQuarter={hasConfirmedCurrentQuarter}
             housingProgress={housingProgress}
             sync={sync}
             onOpenSync={() => setIsSyncOpen(true)}
@@ -304,6 +325,7 @@ export default function App() {
             state={state}
             updateState={updateState}
             suggestion={currentQuarterSuggestion}
+            currentQuarterKey={currentQuarterKey}
           />
         )}
         {activeTab === 'bilt' && (
@@ -432,12 +454,14 @@ function buildTicks(spend: number, rent: number) {
 function Dashboard({
   monthName,
   state,
+  hasConfirmedCurrentQuarter,
   housingProgress,
   sync,
   onOpenSync,
 }: {
   monthName: string;
   state: RewardsState;
+  hasConfirmedCurrentQuarter: boolean;
   housingProgress: ReturnType<typeof getHousingProgress>;
   sync: TrackerSync;
   onOpenSync: () => void;
@@ -498,12 +522,12 @@ function Dashboard({
         </div>
         <Reward
           name="Chase Freedom Flex"
-          activated={state.chaseActivated}
+          activated={hasConfirmedCurrentQuarter && state.chaseActivated}
           categories={state.chaseCategories}
         />
         <Reward
           name="Discover"
-          activated={state.discoverActivated}
+          activated={hasConfirmedCurrentQuarter && state.discoverActivated}
           categories={state.discoverCategories}
         />
       </section>
@@ -771,25 +795,31 @@ function QuarterlySetup({
   state,
   updateState,
   suggestion,
+  currentQuarterKey,
 }: {
   state: RewardsState;
   updateState: <Key extends keyof RewardsState>(key: Key, value: RewardsState[Key]) => void;
   suggestion: CategorySuggestion | null;
+  currentQuarterKey: string;
 }) {
-  const isConfirmed = state.chaseActivated && state.discoverActivated;
+  const isConfirmed =
+    state.categoryQuarterKey === currentQuarterKey &&
+    state.confirmedQuarterKey === currentQuarterKey &&
+    state.chaseActivated &&
+    state.discoverActivated;
 
   const confirmCategories = () => {
-    updateState('confirmedQuarterKey', suggestion ? suggestion.key : getCurrentQuarterKey());
+    updateState('categoryQuarterKey', currentQuarterKey);
+    updateState('confirmedQuarterKey', currentQuarterKey);
     updateState('chaseActivated', true);
     updateState('discoverActivated', true);
-    updateState('reminderDismissedQuarterKey', getCurrentQuarterKey());
+    updateState('reminderDismissedQuarterKey', '');
   };
 
   const editAgain = () => {
     updateState('chaseActivated', false);
     updateState('discoverActivated', false);
-    updateState('confirmedQuarterKey', '');
-    updateState('reminderDismissedQuarterKey', getCurrentQuarterKey());
+    updateState('reminderDismissedQuarterKey', '');
   };
 
   return (

@@ -3,6 +3,7 @@ export type BiltMode = 'housing' | 'cash';
 
 export type RewardsState = {
   quarterMonths: string;
+  categoryQuarterKey: string;
   chaseCategories: string;
   discoverCategories: string;
   chaseActivated: boolean;
@@ -28,6 +29,7 @@ export const DEFAULT_RENT_AMOUNT = 1600;
 
 export const DEFAULT_STATE: RewardsState = {
   quarterMonths: getCurrentQuarterMonths(),
+  categoryQuarterKey: getCurrentQuarterKey(),
   chaseCategories: 'Gas stations, EV charging, live entertainment',
   discoverCategories: 'Restaurants, wholesale clubs',
   chaseActivated: false,
@@ -47,6 +49,12 @@ export function getCurrentQuarterMonths(): string {
     ['Oct', 'Nov', 'Dec'],
   ];
   return quarterMonths[Math.floor(new Date().getMonth() / 3)].join(', ');
+}
+
+export function getCurrentQuarterKey(): string {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3) + 1;
+  return `${now.getFullYear()}-Q${quarter}`;
 }
 
 export function sanitizeSpend(value: unknown): number {
@@ -70,6 +78,10 @@ export function normalizeRewardsState(value: unknown): RewardsState {
     ...DEFAULT_STATE,
     ...parsed,
     quarterMonths: getCurrentQuarterMonths(),
+    categoryQuarterKey:
+      typeof parsed.categoryQuarterKey === 'string'
+        ? parsed.categoryQuarterKey
+        : parsed.confirmedQuarterKey || '',
     biltSpend: sanitizeSpend(parsed.biltSpend),
     biltRent: sanitizeRent(parsed.biltRent),
     biltMode: parsed.biltMode === 'cash' ? 'cash' : 'housing',

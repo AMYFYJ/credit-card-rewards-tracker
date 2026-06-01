@@ -941,18 +941,20 @@ p {
 
 /* ---------- bottom tab bar ---------- */
 .tabbar {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: fixed;
+  left: 50%;
+  right: auto;
   bottom: 0;
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: end;
-  min-height: calc(82px + env(safe-area-inset-bottom));
-  padding: 12px 18px calc(14px + env(safe-area-inset-bottom));
+  width: min(100%, 420px);
+  min-height: calc(80px + env(safe-area-inset-bottom));
+  padding: 8px 18px calc(26px + env(safe-area-inset-bottom));
   border-top: 0;
   background: rgba(245, 246, 248, 0.72);
+  transform: translateX(-50%);
   backdrop-filter: blur(18px) saturate(1.12);
   -webkit-backdrop-filter: blur(18px) saturate(1.12);
 }
@@ -978,20 +980,21 @@ p {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 56px;
-  padding: 6px 4px;
+  gap: 4px;
+  min-height: 48px;
+  padding: 5px 4px;
   border: 0;
   border-radius: 16px;
   background: transparent;
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
+  line-height: 1.05;
   color: var(--faint);
 }
 .tab svg {
-  width: 25px;
-  height: 25px;
+  width: 22px;
+  height: 22px;
 }
 .tab.on {
   color: var(--accent-strong);
@@ -1060,5 +1063,10 @@ p {
     border-radius: 28px;
     box-shadow: 0 24px 70px rgba(20, 30, 40, 0.13);
     overflow: hidden;
+  }
+  .tabbar {
+    bottom: max(24px, calc((100dvh - 880px) / 2));
+    border-bottom-right-radius: 28px;
+    border-bottom-left-radius: 28px;
   }
 }
