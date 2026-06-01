@@ -329,7 +329,7 @@ export function useTrackerSync(
 
     if (error) {
       setStatus('error');
-      setMessage(error.message);
+      setMessage(getPasswordSignUpMessage(error.message));
       return;
     }
 
@@ -420,5 +420,12 @@ function getErrorMessage(error: unknown): string {
 function getPasswordSignInMessage(message: string): string {
   return message.toLowerCase().includes('invalid login credentials')
     ? 'No account found for that email and password. Create an account first.'
+    : message;
+}
+
+function getPasswordSignUpMessage(message: string): string {
+  const normalized = message.toLowerCase();
+  return normalized.includes('already') || normalized.includes('registered')
+    ? 'An account already exists for this email. Sign in, or delete the old test user in Supabase first.'
     : message;
 }
