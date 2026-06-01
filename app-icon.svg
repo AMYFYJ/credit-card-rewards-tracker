@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Credit Card Rewards Tracker">
+  <rect width="512" height="512" rx="108" fill="#f5f6f8"/>
+  <rect x="104" y="120" width="304" height="272" rx="42" fill="#ffffff" stroke="#d9dee4" stroke-width="14"/>
+  <rect x="140" y="162" width="232" height="42" rx="21" fill="#1f7a6f"/>
+  <rect x="140" y="238" width="104" height="28" rx="14" fill="#dcefe9"/>
+  <rect x="268" y="238" width="104" height="28" rx="14" fill="#e9ecef"/>
+  <rect x="140" y="306" width="176" height="28" rx="14" fill="#e9ecef"/>
+  <circle cx="360" cy="332" r="34" fill="#1f7a6f"/>
+  <path d="m344 331 11 12 24-27" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
