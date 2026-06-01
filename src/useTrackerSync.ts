@@ -302,7 +302,7 @@ export function useTrackerSync(
 
     if (error) {
       setStatus('error');
-      setMessage(error.message);
+      setMessage(getPasswordSignInMessage(error.message));
       return;
     }
 
@@ -415,4 +415,10 @@ function getOnlineStatus(): boolean {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Sync failed.';
+}
+
+function getPasswordSignInMessage(message: string): string {
+  return message.toLowerCase().includes('invalid login credentials')
+    ? 'No account found for that email and password. Create an account first.'
+    : message;
 }

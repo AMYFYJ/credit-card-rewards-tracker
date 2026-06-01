@@ -620,16 +620,16 @@ function SyncPanel({ sync, titleId }: { sync: TrackerSync; titleId?: string }) {
             />
           </div>
           <div className="sync-actions">
-            <button type="submit" className="btn" disabled={!canSubmit}>
-              {sync.isSubmittingAuth ? 'Signing in' : 'Sign in'}
-            </button>
             <button
               type="button"
-              className="btn ghost"
+              className="btn"
               onClick={handleCreateAccount}
               disabled={!canSubmit}
             >
-              Create account
+              {sync.isSubmittingAuth ? 'Creating' : 'Create account'}
+            </button>
+            <button type="submit" className="btn ghost" disabled={!canSubmit}>
+              Sign in
             </button>
           </div>
         </form>
